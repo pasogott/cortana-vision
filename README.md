@@ -59,3 +59,71 @@ cortana-vision contains:
 	•	Supabase schema and migration files
 	•	Deployment and scaling instructions
 
+## Folder Structure
+```
+cortana-vision/
+│
+├─ services/                           # every microservice is a standalone Python/uv project
+│   ├─ api-gateway/
+│   │   ├─ pyproject.toml
+│   │   ├─ uv.lock
+│   │   ├─ src/cortana_api/...
+│   │   └─ Dockerfile
+│   │
+│   ├─ s3-cron-scanner/
+│   │   ├─ pyproject.toml
+│   │   ├─ uv.lock
+│   │   ├─ src/cortana_s3_scanner/...
+│   │   └─ Dockerfile
+│   │
+│   ├─ transcode-worker/
+│   │   ├─ pyproject.toml
+│   │   ├─ uv.lock
+│   │   ├─ src/cortana_transcode/...
+│   │   └─ Dockerfile
+│   │
+│   ├─ sampler-worker/
+│   │   ├─ pyproject.toml
+│   │   ├─ uv.lock
+│   │   ├─ src/cortana_sampler/...
+│   │   └─ Dockerfile
+│   │
+│   ├─ ocr-worker/
+│   │   ├─ pyproject.toml
+│   │   ├─ uv.lock
+│   │   ├─ src/cortana_ocr/...
+│   │   └─ Dockerfile
+│   │
+│   ├─ segment-index-worker/
+│   │   ├─ pyproject.toml
+│   │   ├─ uv.lock
+│   │   ├─ src/cortana_segment_index/...
+│   │   └─ Dockerfile
+│   │
+│   └─ clip-service/
+│       ├─ pyproject.toml
+│       ├─ uv.lock
+│       ├─ src/cortana_clip/...
+│       └─ Dockerfile
+│
+├─ deploy/                              # Kubernetes manifests
+│   ├─ base/                             # namespace, common ConfigMaps/Secrets
+│   ├─ prod/                             
+│   │   ├─ api-gateway/
+│   │   ├─ s3-cron-scanner/
+│   │   ├─ transcode-worker/
+│   │   ├─ sampler-worker/
+│   │   ├─ ocr-worker/
+│   │   ├─ segment-index-worker/
+│   │   └─ clip-service/
+│   └─ staging/
+│
+├─ .github/
+│   └─ workflows/                        # CI/CD pipelines: build & push Docker image per service (paths filtered)
+│
+├─ scripts/                               # helper scripts for local dev or CI
+│
+├─ docs/                                   # architecture diagrams, pipeline docs
+│
+└─ README.md
+```
