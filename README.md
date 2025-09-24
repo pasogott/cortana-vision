@@ -1,9 +1,9 @@
-Cortana – Video OCR & Search
+# Cortana – Video OCR & Search
 
 Cortana is a self-hosted backend that turns high-framerate social-media screen recordings into a fully searchable knowledge base.
 It detects every piece of on-screen text (including emojis, @handles, hashtags, numbers) and links it to precise video timestamps so you can instantly jump to any matching moment.
 
-🚀 Tech Stack
+## 🚀 Tech Stack
 
 | Layer / Service          | Technology / Image                  | Purpose                                                                 |
 |--------------------------|---------------------------------------|-------------------------------------------------------------------------|
@@ -22,7 +22,7 @@ It detects every piece of on-screen text (including emojis, @handles, hashtags, 
 
 
 
-🏗️ Processing Pipeline
+## 🏗️ Processing Pipeline
 
 Cortana runs as several containerized services inside Kubernetes.
 Each new video is automatically ingested and processed in well-defined stages:
@@ -45,14 +45,14 @@ Each new video is automatically ingested and processed in well-defined stages:
 
 `Upload → Transcode → Sample → OCR → Segment/Index → Search/Clip`
 
-🔎 Key Features
+## 🔎 Key Features
 	•	Multi-language OCR with emoji and hashtag support
 	•	Precise minute/second timestamps for every detected text
 	•	Fast full-text and fuzzy search via Supabase/PostgreSQL
 	•	Automatic scaling and fault tolerance with Kubernetes
 	•	On-demand video clip generation for search hits
 
-📂 Repository
+## 📂 Repository
 
 cortana-vision contains:
 	•	Kubernetes manifests and Dockerfiles for all services
