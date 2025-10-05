@@ -1,0 +1,26 @@
+
+# Python venv
+venv/
+.env/
+
+# Uploads and generated keyframes
+uploads/
+keyframes/
+
+# Media files
+*.mp4
+*.mov
+*.avi
+*.jpg
+*.jpeg
+*.png
+
+# System files
+__pycache__/
+*.log
+.DS_Store
+
+# IDEs
+.vscode/
+.idea/
+
