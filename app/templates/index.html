@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Snapshot OCR — Upload Video</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css">
+  <style>
+    body {
+      background: #f7f9fc;
+      color: #1e293b;
+      padding: 2rem;
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    }
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 2rem;
+    }
+    nav a {
+      color: #334155;
+      text-decoration: none;
+      margin-left: 1rem;
+      font-weight: 500;
+    }
+    nav a:hover {
+      color: #0ea5e9;
+    }
+    main {
+      max-width: 700px;
+      margin: auto;
+      text-align: center;
+    }
+    .upload-box {
+      background: white;
+      border-radius: 16px;
+      padding: 2rem;
+      box-shadow: 0 3px 12px rgba(0, 0, 0, 0.08);
+    }
+    .upload-box:hover {
+      box-shadow: 0 6px 20px rgba(0, 0, 0, 0.12);
+      transition: all 0.2s ease;
+    }
+    input[type="file"] {
+      display: none;
+    }
+    label.upload-label {
+      display: inline-block;
+      background: #0ea5e9;
+      color: white;
+      padding: 0.8rem 1.6rem;
+      border-radius: 8px;
+      cursor: pointer;
+      font-weight: 600;
+      transition: background 0.2s ease;
+    }
+    label.upload-label:hover {
+      background: #0284c7;
+    }
+    #filename {
+      margin-top: 0.8rem;
+      font-size: 0.95rem;
+      color: #475569;
+    }
+    #status {
+      margin-top: 1.5rem;
+      display: none;
+      color: #0ea5e9;
+      font-weight: 500;
+    }
+  </style>
+</head>
+
+<body>
+  <!-- ✅ Header Navigation -->
+  <header>
+    <h2>📸 Snapshot OCR</h2>
+    <nav>
+      <a href="/ui/">🏠 Home</a>
+      <a href="/ui/search">Search</a>
+      <a href="/ui/progress">Progress</a>
+      <a href="/ui/results">Results</a>
+    </nav>
+  </header>
+
+  <main>
+    <h3>Upload a Recording for Scene Extraction</h3>
+    <p>Drop your `.mp4` or `.mov` file below. Snapshot will detect keyframes and run OCR automatically in the background.</p>
+
+    <div class="upload-box">
+      <form id="uploadForm">
+        <input type="file" id="fileInput" name="file" accept="video/mp4,video/quicktime" required />
+        <label for="fileInput" class="upload-label">Choose Video File</label>
+        <p id="filename"></p>
+        <button type="submit" style="margin-top:1rem;">Upload & Start Extraction</button>
+      </form>
+    </div>
+
+    <div id="status">
+      <progress></progress>
+      <p>Uploading and starting extraction...</p>
+    </div>
+  </main>
+
+  <script>
+    const apiBase = window.location.origin;
+    const fileInput = document.getElementById("fileInput");
+    const filenameDisplay = document.getElementById("filename");
+    const uploadForm = document.getElementById("uploadForm");
+    const status = document.getElementById("status");
+
+    fileInput.addEventListener("change", () => {
+      const file = fileInput.files[0];
+      if (file) filenameDisplay.textContent = `Selected: ${file.name}`;
+    });
+
+    uploadForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const file = fileInput.files[0];
+      if (!file) return alert("Please select a video first.");
+
+      status.style.display = "block";
+
+      const formData = new FormData();
+      formData.append("file", file);
+
+      try {
+        const res = await fetch(`${apiBase}/ui/upload`, {
+          method: "POST",
+          body: formData
+        });
+
+        if (res.ok) {
+          const text = await res.text();
+          document.body.innerHTML = text; // Redirects to progress.html automatically
+        } else {
+          const err = await res.text();
+          alert("Upload failed: " + err);
+          status.style.display = "none";
+        }
+      } catch (error) {
+        alert("Error connecting to API: " + error.message);
+        status.style.display = "none";
+      }
+    });
+  </script>
+</body>
+</html>

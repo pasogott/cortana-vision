@@ -1,26 +1,81 @@
+# ============================================
+#  Snapshot OCR / Eagle Vision – Safe .gitignore
+# ============================================
 
-# Python venv
+# ---- Python & Env ----
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.log
+*.sqlite3
+*.db
+.env
+.env.*
+*.lock
+*.bak
+
+# ---- Virtual Environments ----
+.venv/
 venv/
-.env/
+env/
+ENV/
+.uv/
+*.egg-info/
+build/
+dist/
 
-# Uploads and generated keyframes
+# ---- Editor / IDE ----
+.vscode/
+.idea/
+.DS_Store
+*.swp
+*.swo
+
+# ---- Local Data / Uploads ----
 uploads/
 keyframes/
-
-# Media files
+data/
 *.mp4
 *.mov
 *.avi
+*.mkv
 *.jpg
 *.jpeg
 *.png
+*.gif
+*.bmp
 
-# System files
-__pycache__/
+# ---- FFmpeg / Logs ----
 *.log
-.DS_Store
+*.tmp
+*.txt
+*.json
 
-# IDEs
-.vscode/
-.idea/
+# ---- Docker / Compose ----
+*.pid
+*.sock
+*.out
+*.tmp
+*.cache
+docker-compose.override.yml
+docker-compose.local.yml
 
+# ---- OS / System ----
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# ---- Project-Specific ----
+# sqlite DB snapshot
+snapshot.db
+
+# ---- Security ----
+# exclude all key + credential files
+*.pem
+*.key
+*.crt
+*.pub
+secrets/
+credentials/

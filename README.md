@@ -1,141 +1,247 @@
-# 🧩 Snapshot Sandbox
+🦅 Snapshot Sandbox – Eagle Vision OCR Platform
 
-A lightweight FastAPI service for **scene-change detection** in screen recordings.
-It extracts only the frames where something visibly changes — ideal for building searchable, OCR-ready datasets from video.
+Snapshot Sandbox is a full-stack FastAPI + OpenCV + Tesseract application that extracts, analyzes, and searches text from video frames.
+It was built for scene-level OCR, fast search across frames, and visual navigation through a simple UI.
 
----
+⚙️ Tech Stack
+Layer	Tools
+Backend	FastAPI (Uvicorn + async HTTP client httpx)
+Computer Vision / OCR	OpenCV + Tesseract (pytesseract)
+Database	SQLite (via SQLAlchemy ORM)
+Storage	Hetzner S3 (Object Storage) with boto3
+Tasking	FastAPI BackgroundTasks for non-blocking OCR
+Frontend (UI)	Jinja2 + PicoCSS (lightweight CSS framework)
+Containerization	Docker + Docker Compose
+Package Manager	uv for fast dependency installs
+🧩 Architecture Overview
+            ┌──────────────┐
+ Upload →   │ /upload      │ ──► saves to /uploads
+            └──────────────┘
+                     │
+                     ▼
+             ┌─────────────┐
+ Extract →   │ /extract    │ ──► FFmpeg → keyframes → S3 + DB records
+             └─────────────┘
+                     │
+                     ▼
+     Background ─►   │ /ocr       │ ──► downloads frames → OpenCV + Tesseract
+                     │             │     dual-pass OCR → updates DB
+                     ▼
+             ┌─────────────┐
+ Search →    │ /search     │ ──► query OCR text (fuzzy matching)
+             └─────────────┘
+                     │
+                     ▼
+             ┌─────────────┐
+ UI →        │ /ui/*       │ ──► HTML pages (index, progress, results, search)
+             └─────────────┘
 
-## 🚀 1. Setup Environment
+🧠 OCR Pipeline (OpenCV + Tesseract)
 
-Clone or copy this repository, then open it in your terminal:
+Goal: robust recognition of light + dark UI text, usernames, and faint overlays.
 
-```bash
-cd snapshot-sandbox
-Create and activate a Python virtual environment:
+Step-by-Step
 
-Mac / Linux
+Frame Fetch
 
-bash
-Copy code
-python3 -m venv venv
-source venv/bin/activate
-Windows
+Each video frame is downloaded from Hetzner S3 (via boto3).
 
-bash
-Copy code
-python -m venv venv
-venv\Scripts\activate
-📦 2. Install Dependencies
-Install requirements from requirements.txt:
+Pre-processing (OpenCV)
 
-bash
-Copy code
-pip install -r requirements.txt
-Make sure ffmpeg is installed on your system:
+Convert BGR → grayscale
 
-Mac (Homebrew):
+Invert if dark (mean < 127)
 
-bash
-Copy code
-brew install ffmpeg
-Ubuntu/Debian:
+Enhance contrast with CLAHE
 
-bash
-Copy code
-sudo apt install ffmpeg
-Windows:
+Denoise (fastNlMeansDenoising)
 
-Download from https://ffmpeg.org/download.html
+Sharpen (using kernel filter)
 
-Add ffmpeg to your system PATH.
+Adaptive threshold for binary mask
 
-🧠 3. Run the Server
-Start the FastAPI server:
+Dual-Pass OCR (Tesseract)
 
-bash
-Copy code
-uvicorn main:app --reload --port 8000
-You should see:
+Pass #1: grayscale enhanced (lang=deu+eng)
 
-nginx
-Copy code
-Uvicorn running on http://127.0.0.1:8000
-Test that it’s alive:
+Pass #2: raw color (lang=eng)
 
-Visit http://localhost:8000/docs for Swagger UI
+Merge and normalize text → clean whitespace + symbols
 
-Or run:
+Persistence
 
-bash
-Copy code
-curl http://localhost:8000/
-🎥 4. Upload a Video
-bash
-Copy code
-curl -X 'POST' \
-  'http://localhost:8000/upload' \
-  -H 'accept: application/json' \
-  -H 'Content-Type: multipart/form-data' \
-  -F 'file=@Screen Recording 2025-09-29 at 09.34.00.mov;type=video/quicktime'
-✅ Response:
+Each frame’s OCR result → Frame.ocr_content
 
-json
-Copy code
-{
-  "status": "success",
-  "filename": "Screen Recording 2025-09-29 at 09.34.00.mov",
-  "path": "uploads/Screen Recording 2025-09-29 at 09.34.00.mov"
-}
-🧩 5. Extract Scene Changes
-Run scene detection with chosen sensitivity (lower = more sensitive):
+Flag greyscale_is_processed = True
 
-bash
-Copy code
-curl -X 'POST' \
-  'http://localhost:8000/extract-scenes?filename=Screen%20Recording%202025-09-29%20at%2009.34.00.mov&threshold=0.08' \
-  -H 'accept: application/json'
-🧠 Explanation:
+Searchability
 
-threshold=0.08 — detects small scrolls or content changes
+Fuzzy search (difflib.SequenceMatcher) supports typos and partial matches like tania ≈ tanja1976
 
-Outputs frames to:
+🧱 Database Schema
+Table	Key Fields	Description
+Video	id (UUID), filename, path, is_processed, is_processed_datetime_utc	Tracks each uploaded video
+Frame	id (UUID), video_id, path, frame_number, frame_time, ocr_content, greyscale_is_processed	Stores frames + OCR results
+📦 Environment Variables (.env)
+APP_NAME=Snapshot Sandbox – Eagle Vision
+ENVIRONMENT=development
+DEBUG=True
 
-swift
-Copy code
-keyframes/Screen Recording 2025-09-29 at 09.34.00/
-📁 6. View Results
-After a few seconds, check your project folder:
+DATABASE_URL=sqlite:////app/data/snapshot.db
 
-yaml
-Copy code
-snapshot-sandbox/
- ├── uploads/
- │    └── Screen Recording 2025-09-29 at 09.34.00.mov
- ├── keyframes/
- │    └── Screen Recording 2025-09-29 at 09.34.00/
- │         ├── frame_0001.jpg
- │         ├── frame_0002.jpg
- │         └── ...
- └── main.py
-Each image represents a point in the video where something new appeared on screen.
-Perfect for downstream OCR or timeline indexing.
+# Hetzner S3 (Storage)
+S3_URL=
+S3_BUCKET=cyberheld
+S3_ACCESS_KEY=
+S3_SECRET_KEY=
+REGION=nbg1
+STORAGE_PROVIDER=
 
-🧹 7. Reset Workspace
-To clear all extracted frames and uploads:
+UPLOAD_DIR=
+KEYFRAME_DIR=
 
-bash
-Copy code
-rm -rf uploads keyframes
-🧠 Next Step
-Add a /index endpoint to generate a timestamp → frame JSON index
+🐳 Docker Setup
 
-Integrate OCR or frontend preview (optional)
+Dockerfile installs:
 
-🛠 Requirements Recap
-Component	Purpose	Version
-Python	Runtime	≥3.9
-FastAPI	Web framework	Latest
-Uvicorn	ASGI server	Latest
-ffmpeg	Frame extraction	System-level tool
+ffmpeg (for scene detection)
 
-```
+tesseract-ocr
+
+OpenCV libraries (libsm6, libxext6, etc.)
+
+uv for fast Python installs
+
+docker build -t snapshot-api .
+docker compose up --build
+
+
+Visit → http://localhost:8000/ui/
+
+🚀 Endpoints Summary
+Category	Route	Description
+Upload	POST /upload	Save video to uploads/
+Extract	POST /extract?filename=X&threshold=0.08	Use FFmpeg scene detection → frames → S3
+	GET /extract/status/{filename}	Check scene extraction progress
+OCR	POST /ocr?video_id=UUID	Launch background OCR task
+	GET /ocr/status/{video_id}	Track OCR progress (% complete)
+Search	GET /search?q=term&video_id=UUID	Search OCR results (fuzzy)
+Debug	GET /debug/db	Inspect videos & frame counts
+UI	/ui/	Main index (upload → extract → search)
+	/ui/progress	OCR/extraction progress page
+	/ui/results	Search results grid
+	/ui/search	Interactive search portal (HTML + AJAX)
+🖥 UI Pages (Templates)
+Template	Description
+index.html	Main dashboard: upload video, start processing workflow
+progress.html	Live polling of extraction and OCR status (% done)
+results.html	Search results grid with frame thumbs + snippets
+search.html	Stand-alone AJAX search interface with video selector
+🎨 Features
+
+Responsive PicoCSS layout
+
+Dynamic dropdown populated from /debug/db
+
+AJAX calls → /search
+
+Realtime progress polling for background OCR
+
+Image grid with snippet hover info
+
+🧪 Example Testing Flow
+
+Upload
+
+curl -F "file=@'Screen Recording 2025-09-29 at 09.34.00.mov'" http://localhost:8000/upload
+
+
+Extract Keyframes
+
+curl -X POST "http://localhost:8000/extract/?filename=Screen%20Recording%202025-09-29%20at%2009.34.00.mov&threshold=0.08"
+
+
+→ returns video_id
+
+Run OCR (background)
+
+curl -X POST "http://localhost:8000/ocr/?video_id=<video_id>"
+
+
+→ use /ocr/status/<video_id> to check progress
+
+Search
+
+curl -G "http://localhost:8000/search" --data-urlencode "q=tanja1976" --data-urlencode "video_id=<video_id>"
+
+
+Visual Review
+
+Open http://localhost:8000/ui/search to interactively browse results
+
+🧮 Internal Optimizations
+Feature	Description
+Background OCR	Non-blocking OCR via BackgroundTasks so API remains responsive
+Scene Extraction	FFmpeg scene detection + histogram based frame selection
+Image Pre-processing	CLAHE contrast + denoise + adaptive threshold for UI text
+Fuzzy Search	Handles partial and approximate matches (tolerant of typos)
+S3 Integration	Uploads frames and builds signed URLs for UI rendering
+UI Routing	Dedicated HTML routes under /ui/* (fully decoupled from API)
+🧭 Navigation Flow
+/ui/                → upload video
+└── /ui/progress    → see keyframe/OCR progress
+    └── /ui/results → view extracted OCR matches
+        └── /ui/search → deep search / handle queries
+
+🧰 Developer Notes
+
+FFmpeg tuning: adjust threshold (0.05–0.1) to control scene sensitivity.
+
+OCR languages: edit lang="deu+eng" in ocr.py to add more language packs.
+
+SQLite exploration:
+
+docker exec -it snapshot-api uv pip install sqlite-utils
+docker exec -it snapshot-api sqlite3 /app/data/snapshot.db ".tables"
+
+
+Logs:
+
+OCR progress logged in container stdout every 25 frames.
+
+/ocr/status/{video_id} returns percent completion.
+
+✅ Features Summary
+
+🎥 Upload videos
+
+✂️ Automatic scene detection and keyframe extraction
+
+☁️ Frame upload to Hetzner S3
+
+🧠 Dual-pass OCR processing (OpenCV + Tesseract)
+
+🔍 Fuzzy text search across frames
+
+💡 Responsive HTML UI (front + backend integrated)
+
+🧱 SQLite database tracking for frames + videos
+
+🚀 Asynchronous background OCR task execution
+
+🔄 Progress tracking and results dashboard
+
+🏁 Conclusion
+
+Snapshot Sandbox – Eagle Vision is a complete, containerized micro-pipeline for video → frame → text → search workflows.
+It demonstrates:
+
+scalable OCR processing,
+
+intelligent frame extraction,
+
+smooth async architecture,
+
+and a friendly UI for visual inspection.
+
+You can deploy it standalone, connect it to larger microservices (e.g., api-gateway-service), or extend it for multi-tenant agent use in Kuuka.

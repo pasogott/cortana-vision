@@ -1,0 +1,18 @@
+version: "3.9"
+
+services:
+  snapshot-api:
+    build: .
+    container_name: snapshot-api
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    ports:
+      - "8000:8000"
+    volumes:
+      - .:/app
+      - ./uploads:/app/uploads
+      - ./keyframes:/app/keyframes
+      - ./data:/app/data
+      - ./.env:/app/.env              # ✅ ensure env file is available inside container
+    env_file:
+      - .env                          # ✅ automatically load variables from .env
+    restart: unless-stopped
