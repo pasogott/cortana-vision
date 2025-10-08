@@ -79,3 +79,6 @@ snapshot.db
 *.pub
 secrets/
 credentials/
+.env
+*/.env
+**/.env
