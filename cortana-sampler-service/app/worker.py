@@ -64,10 +64,7 @@ def _deduplicate_by_hist(paths: List[str]) -> List[str]:
 async def make_samples_from_video(payload: dict, redis: Redis):
     """
     Handles a 'make-samples-from-video' job.
-    payload = {
-        "video_id": "...",
-        "filename": "...",
-    }
+    payload = { "video_id": "...", "filename": "..." }
     """
     t0 = time.time()
     video_id = payload.get("video_id")
@@ -130,10 +127,9 @@ async def make_samples_from_video(payload: dict, redis: Redis):
                     greyscale_is_processed=False,
                 )
                 db.add(frame)
-
                 uploaded += 1
 
-                # ✅ Publish greyscale job
+                # ✅ Publish greyscale job (JSON payload)
                 greyscale_job = {
                     "event": settings.event_greyscale,
                     "payload": {
@@ -146,7 +142,11 @@ async def make_samples_from_video(payload: dict, redis: Redis):
                     },
                 }
 
-                redis.publish(settings.jobs_channel, json.dumps(greyscale_job))
+                try:
+                    redis.publish(settings.jobs_channel, json.dumps(greyscale_job))
+                except Exception:
+                    # 👇 Ignore non-critical publishing errors
+                    print(f"[SAMPLER][WARN] Could not publish job for frame_{idx:04d}")
 
                 if uploaded % 10 == 0 or uploaded == len(kept):
                     print(f"[SAMPLER] ⬆️  Uploaded {uploaded}/{len(kept)} frames and queued jobs")
@@ -167,6 +167,9 @@ async def make_samples_from_video(payload: dict, redis: Redis):
         os.remove(tmp_video)
         print(f"[SAMPLER] 🧹 Cleanup complete in {round(time.time() - t0, 2)}s")
 
+    except json.JSONDecodeError:
+        # 👇 This is the new fix — safely ignore plain-text Redis messages
+        print(f"[SAMPLER] Ignored non-JSON message")
     except Exception as e:
         db.rollback()
         print(f"[SAMPLER][ERR] Crash → {e}")

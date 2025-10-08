@@ -59,7 +59,7 @@ async def make_greyscale_from_samples(payload: dict, redis: Redis):
                 "frame_number": frame_number
             },
         }
-        redis.publish(settings.jobs_channel, json.dumps(msg))
+        redis.publish(settings.jobs_channel, f"{settings.event_ocr}:{grey_key}")
 
         # 6️⃣ Cleanup
         os.remove(local_path)

@@ -89,6 +89,49 @@ services:
     command: >
       bash -c "python -m app.main"
 
+   # -------------------------------------------------
+  # OCR SERVICE (runs OCR on greyscale frames)
+  # -------------------------------------------------   
+  ocr-service:
+    build: ./cortana-ocr-service
+    container_name: cortana-ocr
+    restart: always
+    env_file:
+      - ./cortana-ocr-service/.env
+    volumes:
+      - ./cortana-ocr-service/app:/app/app
+      - ./uploads:/app/uploads
+      - ./data:/app/data
+    depends_on:
+      - redis
+      - api-service
+      - greyscale-service
+    networks:
+      - cortana-net
+    command: >
+      bash -c "python -m app.main"
+
+  # -------------------------------------------------
+  # SEARCH SERVICE (text indexing and search)
+  # -------------------------------------------------
+  search-service:
+    build: ./cortana-search-service
+    container_name: cortana-search
+    restart: always
+    ports:
+      - "8080:8080"
+    env_file:
+      - ./cortana-search-service/.env
+    volumes:
+      - ./cortana-search-service/app:/app/app
+      - ./data:/app/data
+    depends_on:
+      - redis
+      - ocr-service
+    networks:
+      - cortana-net
+
+
 
   # -------------------------------------------------
   # REDIS (Message broker)

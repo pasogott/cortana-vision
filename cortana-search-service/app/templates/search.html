@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block content %}
+  <form method="get" action="/search">
+    <input type="text" name="q" value="{{ query }}" placeholder="Search OCR text..." autofocus>
+    <button type="submit">Search</button>
+  </form>
+
+  {% if query %}
+    <h2>Results for “{{ query }}”</h2>
+    <ul>
+      {% for r in results %}
+        <li>
+          <strong>{{ r.video_id }}</strong><br>
+          <a href="{{ r.frame_path }}" target="_blank">{{ r.frame_path.split('/')[-1] }}</a><br>
+          <small>{{ r.snippet|safe }}</small>
+        </li>
+      {% else %}
+        <p>No matches found.</p>
+      {% endfor %}
+    </ul>
+  {% endif %}
+{% endblock %}

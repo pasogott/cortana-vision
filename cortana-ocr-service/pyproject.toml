@@ -1,0 +1,16 @@
+[project]
+name = "cortana-ocr-service"
+version = "0.1.0"
+description = "OCR worker for Cortana distributed video processing pipeline"
+requires-python = ">=3.11"
+
+dependencies = [
+    "boto3",
+    "redis",
+    "pydantic>=2.0",
+    "pydantic-settings>=2.0",
+    "sqlalchemy",
+    "pillow",
+    "pytesseract",
+    "opencv-python-headless",
+]

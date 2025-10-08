@@ -1,0 +1,14 @@
+[project]
+name = "cortana-search-service"
+version = "0.1.0"
+description = "Cortana Search and UI microservice for OCR results"
+authors = [{ name = "Sam L.", email = "dev@samcraft.io" }]
+dependencies = [
+    "fastapi",
+    "uvicorn",
+    "jinja2",
+    "sqlalchemy",
+    "boto3",
+    "pydantic-settings",
+]
+requires-python = ">=3.11"
