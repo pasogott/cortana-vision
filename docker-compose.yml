@@ -10,19 +10,16 @@ services:
     restart: always
     ports:
       - "8000:8000"
+    env_file:
+      - .env
     volumes:
       - ./cortana-api-service/app:/app/app
       - ./uploads:/app/uploads
-      - ./data:/app/data                # ✅ shared DB directory
+      - ./data:/app/data
     environment:
       - PYTHONUNBUFFERED=1
-      - DATABASE_URL=sqlite:////app/data/snapshot.db  # ✅ same path for all
+      - DATABASE_URL=sqlite:////app/data/snapshot.db
       - REDIS_URL=redis://cortana-redis:6379/0
-      - S3_URL=${S3_URL}
-      - S3_BUCKET=${S3_BUCKET}
-      - S3_ACCESS_KEY=${S3_ACCESS_KEY}
-      - S3_SECRET_KEY=${S3_SECRET_KEY}
-      - REGION=${REGION}
     depends_on:
       - redis
     networks:
@@ -31,28 +28,58 @@ services:
       bash -c "uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
 
   # -------------------------------------------------
-  # SAMPLER SERVICE (Background worker)
+  # SAMPLER SERVICE (extracts frames)
   # -------------------------------------------------
   sampler-service:
     build: ./cortana-sampler-service
     container_name: cortana-sampler
     restart: always
+    env_file:
+      - .env
     volumes:
       - ./cortana-sampler-service/app:/app/app
       - ./uploads:/app/uploads
-      - ./data:/app/data                # ✅ share same DB volume
+      - ./data:/app/data
     environment:
       - DATABASE_URL=sqlite:////app/data/snapshot.db
       - REDIS_URL=redis://cortana-redis:6379/0
       - JOBS_CHANNEL=cortana-jobs
       - EVENT_SAMPLES=make-samples-from-video
       - EVENT_GREYSCALE=make-greyscale-from-samples
-      - S3_URL=${S3_URL}
-      - S3_BUCKET=${S3_BUCKET}
-      - S3_ACCESS_KEY=${S3_ACCESS_KEY}
-      - S3_SECRET_KEY=${S3_SECRET_KEY}
-      - REGION=${REGION}
       - SAMPLE_THRESHOLD=0.08
+      - TMP_DIR=/app/tmp
+      - MODE=dev
+    depends_on:
+      - redis
+      - api-service
+    networks:
+      - cortana-net
+    command: >
+      bash -c "if [ \"$MODE\" = 'dev' ]; then
+                 watchfiles 'python -m app.main' /app/app --verbose;
+               else
+                 python -m app.main;
+               fi"
+
+  # -------------------------------------------------
+  # GREYSCALE SERVICE (makes greyscale frames)
+  # -------------------------------------------------
+  greyscale-service:
+    build: ./cortana-greyscale-service
+    container_name: cortana-greyscale
+    restart: always
+    env_file:
+      - .env
+    volumes:
+      - ./cortana-greyscale-service/app:/app/app
+      - ./uploads:/app/uploads
+      - ./data:/app/data
+    environment:
+      - DATABASE_URL=sqlite:////app/data/snapshot.db
+      - REDIS_URL=redis://cortana-redis:6379/0
+      - JOBS_CHANNEL=cortana-jobs
+      - EVENT_GREYSCALE=make-greyscale-from-samples
+      - EVENT_OCR=run-ocr-from-greyscaled-samples
       - TMP_DIR=/app/tmp
     depends_on:
       - redis
@@ -61,6 +88,7 @@ services:
       - cortana-net
     command: >
       bash -c "python -m app.main"
+
 
   # -------------------------------------------------
   # REDIS (Message broker)
@@ -77,7 +105,7 @@ services:
       - cortana-net
 
 # -------------------------------------------------
-# NETWORK & VOLUMES
+# NETWORKS & VOLUMES
 # -------------------------------------------------
 networks:
   cortana-net:

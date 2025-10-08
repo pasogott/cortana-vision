@@ -5,15 +5,15 @@ import signal
 import sys
 from redis import Redis
 from sqlalchemy.exc import SQLAlchemyError
-from sqlalchemy import create_engine
 
-from .config import settings
-from .worker import make_samples_from_video, Base, engine
+from app.config import settings
+from app.models import Base
+from app.database import engine
+from app.worker import make_samples_from_video
 
-engine = create_engine(settings.database_url, future=True)
 
 print("[INIT] Ensuring database and tables exist …")
-Base.metadata.create_all(bind=engine)
+Base.metadata.create_all(bind=engine, checkfirst=True)
 
 
 def _redis_client() -> Redis:
@@ -22,7 +22,7 @@ def _redis_client() -> Redis:
 
 
 async def handle_message(msg: dict, redis: Redis):
-    """Process a single message from the pubsub stream."""
+    """Process a single message from Redis pub/sub."""
     if msg.get("type") != "message":
         return
 
@@ -34,7 +34,6 @@ async def handle_message(msg: dict, redis: Redis):
         if event == settings.event_samples:
             await make_samples_from_video(payload, redis)
         else:
-            # Ignore events meant for other services
             print(f"[SAMPLER] Ignored event: {event}")
 
     except Exception as e:
@@ -42,16 +41,14 @@ async def handle_message(msg: dict, redis: Redis):
 
 
 async def run():
-    """Main sampler loop."""
-    # --- Ensure tables exist ---
+    """Main event loop for the sampler."""
     try:
         print("[SAMPLER] Ensuring database tables exist …")
-        Base.metadata.create_all(bind=engine)
+        Base.metadata.create_all(bind=engine, checkfirst=True)
     except SQLAlchemyError as e:
         print(f"[SAMPLER] Database init error: {e}")
         sys.exit(1)
 
-    # --- Redis connection ---
     redis = _redis_client()
     pubsub = redis.pubsub(ignore_subscribe_messages=True)
     pubsub.subscribe(settings.jobs_channel)
@@ -61,7 +58,6 @@ async def run():
     loop = asyncio.get_running_loop()
     stop_event = asyncio.Event()
 
-    # graceful shutdown
     def _shutdown():
         print("\n[SAMPLER] Shutting down …")
         stop_event.set()

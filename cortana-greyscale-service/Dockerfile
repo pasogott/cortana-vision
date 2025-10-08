@@ -4,6 +4,7 @@
 FROM python:3.11-slim AS base
 
 ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
     UV_SYSTEM_PIP=1 \
     UV_LINK_MODE=copy \
     PATH="/root/.local/bin:$PATH"
@@ -14,37 +15,55 @@ WORKDIR /app
 # SYSTEM DEPENDENCIES
 # -------------------------------------------------
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    bash curl build-essential sqlite3 \
- && rm -rf /var/lib/apt/lists/*
+    ffmpeg \
+    build-essential \
+    libglib2.0-0 \
+    libsm6 \
+    libxrender1 \
+    libxext6 \
+    sqlite3 \
+ && apt-get clean && rm -rf /var/lib/apt/lists/*
 
-# Install uv (fast dependency manager)
+# -------------------------------------------------
+# INSTALL UV (modern pip/poetry hybrid)
+# -------------------------------------------------
 RUN pip install --no-cache-dir uv
 
 # -------------------------------------------------
 # DEPENDENCY CACHE LAYER
 # -------------------------------------------------
-# Copy dependency manifest files FIRST to enable Docker layer caching
+# Copy dependency manifest first to leverage Docker cache
 COPY pyproject.toml ./
 
-# Compile dependencies and install them into system
+# Pre-compile & install dependencies
 RUN uv pip compile pyproject.toml -o requirements.txt --generate-hashes --quiet \
  && uv pip install --system --no-cache -r requirements.txt
 
 # -------------------------------------------------
 # APPLICATION LAYER
 # -------------------------------------------------
-# Copy only app code last (so code edits don't invalidate dependency cache)
-COPY ./app /app/app
-COPY .env /app/.env
+# Copy application source
+COPY app ./app
+COPY .env .env
 
-# Ensure appuser exists and owns the directory
+# Create writable directories
+RUN mkdir -p /app/tmp /app/data /app/uploads && chmod -R 777 /app
+
+# -------------------------------------------------
+# SECURITY: NON-ROOT USER
+# -------------------------------------------------
 RUN useradd -m appuser && chown -R appuser:appuser /app
 USER appuser
 
-# Expose FastAPI port
-EXPOSE 8000
+# -------------------------------------------------
+# ARG / ENV FOR MODE (dev or prod)
+# -------------------------------------------------
+ARG MODE=prod
+ENV MODE=${MODE}
 
 # -------------------------------------------------
-# START COMMAND
+# ENTRYPOINT LOGIC
 # -------------------------------------------------
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+# The actual command is injected via docker-compose.
+# Default (safe) fallback if not overridden:
+CMD ["python", "-m", "app.main"]

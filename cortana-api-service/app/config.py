@@ -11,6 +11,7 @@ class Settings(BaseSettings):
     STORAGE_BACKEND: str = "local"
     STORAGE_BUCKET: str = "cortana-videos"
     UPLOAD_DIR: str = "uploads"
+    storage_provider: str = "hetzner"
 
     # --- S3 / Hetzner Object Storage ---
     S3_URL: str = ""

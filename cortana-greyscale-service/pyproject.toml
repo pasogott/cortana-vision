@@ -1,0 +1,42 @@
+[project]
+name = "cortana-greyscale-service"
+version = "0.1.0"
+description = "Cortana microservice that converts extracted frames to grayscale and queues OCR jobs."
+requires-python = ">=3.10"
+readme = "README.md"
+authors = [
+    { name = "Samuel L.", email = "sam@buildwithsam.dev" }
+]
+
+dependencies = [
+    # Core system
+    "fastapi>=0.110.0",
+    "uvicorn>=0.27.1",
+    "redis>=5.0.1",
+    "sqlalchemy>=2.0.25",
+    "pydantic>=2.6.0",
+    "pydantic-settings>=2.2.1",
+    "opencv-python-headless>=4.9.0.80",
+
+    # S3 + storage
+    "boto3>=1.34.20",
+    "botocore>=1.34.20",
+
+    # Utils
+    "aiofiles>=23.2.1",
+    "python-multipart>=0.0.9",
+    "asyncio>=3.4.3",
+]
+
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.uv]
+# Optional optimization for uv dependency resolution
+index-url = "https://pypi.org/simple"
+compile-constraints = true
+
+[tool.ruff]
+line-length = 100
+select = ["E", "F", "I"]
