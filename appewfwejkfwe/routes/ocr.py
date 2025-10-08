@@ -89,9 +89,9 @@ async def run_ocr_task(video_id: str):
                     text_gray = pytesseract.image_to_string(bw, lang="deu+eng", config=config)
                 except pytesseract.TesseractError:
                     text_gray = pytesseract.image_to_string(bw, lang="eng", config=config)
-                text_color = pytesseract.image_to_string(img, lang="eng", config=config)
+                # text_color = pytesseract.image_to_string(img, lang="eng", config=config)
 
-                merged_text = (text_gray + " " + text_color).strip()
+                merged_text = (text_gray + " " ).strip()
                 merged_text = re.sub(r"\s+", " ", merged_text)
 
                 frame.ocr_content = merged_text

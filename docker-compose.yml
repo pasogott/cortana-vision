@@ -1,18 +1,87 @@
 version: "3.9"
 
 services:
-  snapshot-api:
-    build: .
-    container_name: snapshot-api
-    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+  # -------------------------------------------------
+  # API SERVICE (Main FastAPI app)
+  # -------------------------------------------------
+  api-service:
+    build: ./cortana-api-service
+    container_name: cortana-api
+    restart: always
     ports:
       - "8000:8000"
     volumes:
-      - .:/app
+      - ./cortana-api-service/app:/app/app
       - ./uploads:/app/uploads
-      - ./keyframes:/app/keyframes
-      - ./data:/app/data
-      - ./.env:/app/.env              # ✅ ensure env file is available inside container
-    env_file:
-      - .env                          # ✅ automatically load variables from .env
-    restart: unless-stopped
+      - ./data:/app/data                # ✅ shared DB directory
+    environment:
+      - PYTHONUNBUFFERED=1
+      - DATABASE_URL=sqlite:////app/data/snapshot.db  # ✅ same path for all
+      - REDIS_URL=redis://cortana-redis:6379/0
+      - S3_URL=${S3_URL}
+      - S3_BUCKET=${S3_BUCKET}
+      - S3_ACCESS_KEY=${S3_ACCESS_KEY}
+      - S3_SECRET_KEY=${S3_SECRET_KEY}
+      - REGION=${REGION}
+    depends_on:
+      - redis
+    networks:
+      - cortana-net
+    command: >
+      bash -c "uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
+
+  # -------------------------------------------------
+  # SAMPLER SERVICE (Background worker)
+  # -------------------------------------------------
+  sampler-service:
+    build: ./cortana-sampler-service
+    container_name: cortana-sampler
+    restart: always
+    volumes:
+      - ./cortana-sampler-service/app:/app/app
+      - ./uploads:/app/uploads
+      - ./data:/app/data                # ✅ share same DB volume
+    environment:
+      - DATABASE_URL=sqlite:////app/data/snapshot.db
+      - REDIS_URL=redis://cortana-redis:6379/0
+      - JOBS_CHANNEL=cortana-jobs
+      - EVENT_SAMPLES=make-samples-from-video
+      - EVENT_GREYSCALE=make-greyscale-from-samples
+      - S3_URL=${S3_URL}
+      - S3_BUCKET=${S3_BUCKET}
+      - S3_ACCESS_KEY=${S3_ACCESS_KEY}
+      - S3_SECRET_KEY=${S3_SECRET_KEY}
+      - REGION=${REGION}
+      - SAMPLE_THRESHOLD=0.08
+      - TMP_DIR=/app/tmp
+    depends_on:
+      - redis
+      - api-service
+    networks:
+      - cortana-net
+    command: >
+      bash -c "python -m app.main"
+
+  # -------------------------------------------------
+  # REDIS (Message broker)
+  # -------------------------------------------------
+  redis:
+    image: redis:7
+    container_name: cortana-redis
+    restart: always
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    networks:
+      - cortana-net
+
+# -------------------------------------------------
+# NETWORK & VOLUMES
+# -------------------------------------------------
+networks:
+  cortana-net:
+    driver: bridge
+
+volumes:
+  redis-data:
