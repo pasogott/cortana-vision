@@ -1,22 +1,55 @@
 {% extends "base.html" %}
 {% block content %}
-  <form method="get" action="/search">
-    <input type="text" name="q" value="{{ query }}" placeholder="Search OCR text..." autofocus>
-    <button type="submit">Search</button>
-  </form>
 
-  {% if query %}
-    <h2>Results for “{{ query }}”</h2>
-    <ul>
-      {% for r in results %}
-        <li>
-          <strong>{{ r.video_id }}</strong><br>
-          <a href="{{ r.frame_path }}" target="_blank">{{ r.frame_path.split('/')[-1] }}</a><br>
-          <small>{{ r.snippet|safe }}</small>
-        </li>
-      {% else %}
-        <p>No matches found.</p>
-      {% endfor %}
-    </ul>
+<h1 style="margin-bottom:1rem;">🔍 Video OCR Search</h1>
+
+<form method="get" action="/search" style="display:flex; flex-wrap:wrap; gap:0.8rem; margin-bottom:2rem;">
+  <select name="video_id" required style="padding:0.6em; border-radius:8px; border:1px solid #ccc;">
+    <option value="">-- Select a Video --</option>
+    {% for v in videos %}
+      <option value="{{ v.id }}" {% if v.id == video_id %}selected{% endif %}>{{ v.filename }}</option>
+    {% endfor %}
+  </select>
+
+  <input type="text" name="q" value="{{ query }}" placeholder="Search inside selected video..."
+         style="flex:1; padding:0.6em; border-radius:8px; border:1px solid #ccc;" required>
+
+  <button type="submit" style="padding:0.6em 1em; border-radius:8px; background:#007BFF; color:white;">
+    Search
+  </button>
+</form>
+
+{% if selected_video %}
+  <h2>🎞 Searching in: {{ selected_video.filename }}</h2>
+{% endif %}
+
+{% if query %}
+  <h3 style="margin-top:1rem;">Results for “{{ query }}”</h3>
+
+  {% if results %}
+    <table style="width:100%; border-collapse:collapse; margin-top:1rem;">
+      <thead>
+        <tr style="background:#f2f2f2;">
+          <th style="padding:0.6em; text-align:left;">Frame Name</th>
+          <th style="padding:0.6em; text-align:left;">Matched Text</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in results %}
+        <tr style="border-bottom:1px solid #ddd;">
+          <td style="padding:0.6em;">
+            {{ r['frame_path'].split('/')[-1] }}
+          </td>
+          <td style="padding:0.6em;">
+            {{ r['snippet']|safe }}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <p style="margin-top:1rem;">No matches found in this video.</p>
   {% endif %}
+{% endif %}
+
 {% endblock %}

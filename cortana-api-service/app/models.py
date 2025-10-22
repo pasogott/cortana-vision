@@ -32,16 +32,19 @@ class Video(Base):
 
     # Metadata
     filename = Column(String, index=True, nullable=False)
-    path = Column(String, nullable=False)  # e.g., S3 or local path
+    path = Column(String, nullable=True)  # can start as None until upload done
     is_processed = Column(Boolean, default=False)
     created_at = Column(DateTime, default=datetime.utcnow)
     is_processed_datetime_utc = Column(DateTime, nullable=True)
+
+    # ✅ New column for progress tracking
+    status = Column(String, default="queued")  # queued | processing | ready | failed
 
     # Relationship to frames
     frames = relationship("Frame", back_populates="video", cascade="all, delete-orphan")
 
     def __repr__(self):
-        return f"<Video(id={self.id}, filename={self.filename})>"
+        return f"<Video(id={self.id}, filename={self.filename}, status={self.status})>"
 
 
 # -------------------------------------------------

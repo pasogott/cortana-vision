@@ -1,45 +1,43 @@
-version: "3.9"
-
 services:
-  # -------------------------------------------------
-  # API SERVICE (Main FastAPI app)
-  # -------------------------------------------------
+  # --------------------- API ---------------------
   api-service:
     build: ./cortana-api-service
     container_name: cortana-api
     restart: always
-    ports:
-      - "8000:8000"
-    env_file:
-      - .env
+    ports: ["8000:8000"]
+    env_file: [.env]
     volumes:
-      - ./cortana-api-service/app:/app/app
-      - ./uploads:/app/uploads
-      - ./data:/app/data
+      - ./cortana-api-service/app:/app/app           # code hot-reload
+      - uploads-data:/app/uploads                    # named volume (fixes perms)
+      - db-data:/app/data                            # named volume (fixes perms)
     environment:
       - PYTHONUNBUFFERED=1
       - DATABASE_URL=sqlite:////app/data/snapshot.db
       - REDIS_URL=redis://cortana-redis:6379/0
     depends_on:
-      - redis
-    networks:
-      - cortana-net
+      redis:
+        condition: service_healthy
+    networks: [cortana-net]
     command: >
-      bash -c "uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
+      bash -c "uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+               --access-log --limit-max-request 2147483648"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8000/ >/dev/null || exit 1"]
+      interval: 5s
+      timeout: 2s
+      retries: 20
+      start_period: 10s
 
-  # -------------------------------------------------
-  # SAMPLER SERVICE (extracts frames)
-  # -------------------------------------------------
+  # ------------------- SAMPLER -------------------
   sampler-service:
     build: ./cortana-sampler-service
     container_name: cortana-sampler
     restart: always
-    env_file:
-      - .env
+    env_file: [.env]
     volumes:
       - ./cortana-sampler-service/app:/app/app
-      - ./uploads:/app/uploads
-      - ./data:/app/data
+      - uploads-data:/app/uploads
+      - db-data:/app/data
     environment:
       - DATABASE_URL=sqlite:////app/data/snapshot.db
       - REDIS_URL=redis://cortana-redis:6379/0
@@ -50,30 +48,41 @@ services:
       - TMP_DIR=/app/tmp
       - MODE=dev
     depends_on:
-      - redis
-      - api-service
-    networks:
-      - cortana-net
+      redis:
+        condition: service_healthy
+      api-service:
+        condition: service_healthy
+    networks: [cortana-net]
     command: >
-      bash -c "if [ \"$MODE\" = 'dev' ]; then
-                 watchfiles 'python -m app.main' /app/app --verbose;
+      bash -c "if [ \"${MODE:-dev}\" = 'dev' ]; then
+                 python -m pip install --no-cache-dir watchfiles >/dev/null 2>&1 || true;
+                 watchfiles --ignore-paths /app/tmp --filter python 'python -m app.main' /app/app;
                else
                  python -m app.main;
                fi"
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - >
+          python -c "import os,socket,importlib; importlib.import_module('app.main');
+          u=os.getenv('REDIS_URL','redis://cortana-redis:6379/0');
+          hp=u.split('://',1)[-1].split('/',1)[0]; host,port=(hp.split(':',1)+['6379'])[:2];
+          s=socket.create_connection((host,int(port)),2.0); s.close()"
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 10s
 
-  # -------------------------------------------------
-  # GREYSCALE SERVICE (makes greyscale frames)
-  # -------------------------------------------------
+  # ------------------ GREYSCALE ------------------
   greyscale-service:
     build: ./cortana-greyscale-service
     container_name: cortana-greyscale
     restart: always
-    env_file:
-      - .env
+    env_file: [.env]
     volumes:
       - ./cortana-greyscale-service/app:/app/app
-      - ./uploads:/app/uploads
-      - ./data:/app/data
+      - uploads-data:/app/uploads
+      - db-data:/app/data
     environment:
       - DATABASE_URL=sqlite:////app/data/snapshot.db
       - REDIS_URL=redis://cortana-redis:6379/0
@@ -82,77 +91,120 @@ services:
       - EVENT_OCR=run-ocr-from-greyscaled-samples
       - TMP_DIR=/app/tmp
     depends_on:
-      - redis
-      - api-service
-    networks:
-      - cortana-net
+      redis:
+        condition: service_healthy
+      api-service:
+        condition: service_healthy
+    networks: [cortana-net]
     command: >
       bash -c "python -m app.main"
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - >
+          python -c "import os,socket,importlib; importlib.import_module('app.main');
+          u=os.getenv('REDIS_URL','redis://cortana-redis:6379/0');
+          hp=u.split('://',1)[-1].split('/',1)[0]; host,port=(hp.split(':',1)+['6379'])[:2];
+          s=socket.create_connection((host,int(port)),2.0); s.close()"
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 20s
 
-   # -------------------------------------------------
-  # OCR SERVICE (runs OCR on greyscale frames)
-  # -------------------------------------------------   
+  # ---------------------- OCR --------------------
   ocr-service:
     build: ./cortana-ocr-service
     container_name: cortana-ocr
     restart: always
-    env_file:
-      - ./cortana-ocr-service/.env
+    env_file: [.env]
     volumes:
       - ./cortana-ocr-service/app:/app/app
-      - ./uploads:/app/uploads
-      - ./data:/app/data
+      - uploads-data:/app/uploads
+      - db-data:/app/data
+    environment:
+      - DATABASE_URL=sqlite:////app/data/snapshot.db
+      - REDIS_URL=redis://cortana-redis:6379/0
+      - JOBS_CHANNEL=cortana-jobs
+      - EVENTS_CHANNEL=cortana-events     # <— add this to api/sampler/greyscale/ocr/search
+      - EVENT_SAMPLES=make-samples-from-video
+      - EVENT_GREYSCALE=make-greyscale-from-samples
+      - EVENT_OCR=run-ocr-from-greyscaled-samples
+      - EVENT_OCR_UPDATE=ocr-index-updated
+      - TMP_DIR=/app/tmp
     depends_on:
-      - redis
-      - api-service
-      - greyscale-service
-    networks:
-      - cortana-net
+      redis:
+        condition: service_healthy
+      api-service:
+        condition: service_healthy
+      greyscale-service:
+        condition: service_healthy
+    networks: [cortana-net]
     command: >
       bash -c "python -m app.main"
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - >
+          python -c "import os,socket,importlib; importlib.import_module('app.main');
+          u=os.getenv('REDIS_URL','redis://cortana-redis:6379/0');
+          hp=u.split('://',1)[-1].split('/',1)[0]; host,port=(hp.split(':',1)+['6379'])[:2];
+          s=socket.create_connection((host,int(port)),2.0); s.close()"
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 10s
 
-  # -------------------------------------------------
-  # SEARCH SERVICE (text indexing and search)
-  # -------------------------------------------------
+  # -------------------- SEARCH -------------------
   search-service:
     build: ./cortana-search-service
     container_name: cortana-search
     restart: always
-    ports:
-      - "8080:8080"
-    env_file:
-      - ./cortana-search-service/.env
+    ports: ["8080:8080"]
+    env_file: [./cortana-search-service/.env]
     volumes:
       - ./cortana-search-service/app:/app/app
-      - ./data:/app/data
+      - db-data:/app/data
     depends_on:
-      - redis
-      - ocr-service
-    networks:
-      - cortana-net
+      redis:
+        condition: service_healthy
+      ocr-service:
+        condition: service_healthy
+    networks: [cortana-net]
+    # Use uvicorn so the container stays up
+    command: >
+      bash -c "uvicorn app.main:app --host 0.0.0.0 --port 8080 --access-log"
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - >
+          python -c "import socket; s=socket.create_connection(('localhost',8080),2.0); s.close()"
+      interval: 5s
+      timeout: 3s
+      retries: 30
+      start_period: 10s
 
-
-
-  # -------------------------------------------------
-  # REDIS (Message broker)
-  # -------------------------------------------------
+  # --------------------- REDIS -------------------
   redis:
     image: redis:7
     container_name: cortana-redis
     restart: always
-    ports:
-      - "6379:6379"
+    ports: ["6379:6379"]
     volumes:
       - redis-data:/data
-    networks:
-      - cortana-net
+    networks: [cortana-net]
+    command: ["redis-server", "--save", "60", "1000", "--appendonly", "no"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 3s
+      timeout: 2s
+      retries: 20
+      start_period: 3s
 
-# -------------------------------------------------
-# NETWORKS & VOLUMES
-# -------------------------------------------------
 networks:
   cortana-net:
     driver: bridge
 
 volumes:
+  uploads-data:
+  db-data:
   redis-data:

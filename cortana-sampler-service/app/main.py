@@ -1,4 +1,3 @@
-# app/main.py
 import asyncio
 import json
 import signal
@@ -22,44 +21,58 @@ def _redis_client() -> Redis:
 
 
 async def handle_message(msg: dict, redis: Redis):
-    """Process a single message from Redis pub/sub."""
+    """Process a single Redis pub/sub message safely."""
     if msg.get("type") != "message":
         return
 
-    try:
-        data = json.loads(msg["data"])
-        event = data.get("event")
-        payload = data.get("payload") or {}
+    raw = msg.get("data")
+    if not raw:
+        print("[SAMPLER][WARN] Empty message received — ignoring.")
+        return
 
+    # Handle both JSON and raw string events
+    try:
+        data = json.loads(raw)
+    except json.JSONDecodeError:
+        print(f"[SAMPLER][WARN] Non-JSON payload: {raw}")
+        return
+
+    event = data.get("event")
+    payload = data.get("payload") or {}
+
+    if not event:
+        print(f"[SAMPLER][WARN] Missing event field in message: {data}")
+        return
+
+    try:
         if event == settings.event_samples:
             await make_samples_from_video(payload, redis)
         else:
             print(f"[SAMPLER] Ignored event: {event}")
-
     except Exception as e:
-        print(f"[SAMPLER] Error handling message: {e}")
+        print(f"[SAMPLER][ERR] Error handling event '{event}': {e}")
 
 
 async def run():
-    """Main event loop for the sampler."""
+    """Main async loop for listening to Redis events."""
     try:
         print("[SAMPLER] Ensuring database tables exist …")
         Base.metadata.create_all(bind=engine, checkfirst=True)
     except SQLAlchemyError as e:
-        print(f"[SAMPLER] Database init error: {e}")
+        print(f"[SAMPLER][DB ERR] {e}")
         sys.exit(1)
 
     redis = _redis_client()
     pubsub = redis.pubsub(ignore_subscribe_messages=True)
     pubsub.subscribe(settings.jobs_channel)
 
-    print(f"[SAMPLER] Listening on channel '{settings.jobs_channel}' …")
+    print(f"[SAMPLER] 🧠 Listening on '{settings.jobs_channel}' for events…")
 
     loop = asyncio.get_running_loop()
     stop_event = asyncio.Event()
 
     def _shutdown():
-        print("\n[SAMPLER] Shutting down …")
+        print("\n[SAMPLER] 📴 Shutting down gracefully …")
         stop_event.set()
 
     for sig in (signal.SIGINT, signal.SIGTERM):
@@ -74,7 +87,7 @@ async def run():
     finally:
         pubsub.close()
         redis.close()
-        print("[SAMPLER] Closed Redis connection. Bye!")
+        print("[SAMPLER] Redis connection closed. Bye 👋")
 
 
 if __name__ == "__main__":

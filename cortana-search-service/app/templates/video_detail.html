@@ -1,19 +1,37 @@
 {% extends "base.html" %}
 {% block content %}
-<h2>🎞 Frames for Video: {{ video_id }}</h2>
-<a href="/dashboard">⬅ Back to Dashboard</a>
+
+<a href="/dashboard" style="text-decoration:none; color:#007BFF;">⬅ Back to Dashboard</a>
+
+{% if video_info %}
+  <h2 style="margin-top:1rem;">🎞 Video: {{ video_info.filename }}</h2>
+  <p><strong>Video ID:</strong> {{ video_info.id }}</p>
+
+  <div style="margin:1rem 0; max-width:400px;">
+    <div style="background:#e0e0e0; border-radius:6px; width:100%; height:12px;">
+      <div style="background:#4CAF50; width:{{ progress }}%; height:12px; border-radius:6px;"></div>
+    </div>
+    <small>{{ progress }}% processed ({{ video_info.processed_frames or 0 }} / {{ video_info.total_frames }})</small>
+  </div>
+{% else %}
+  <h2>Video Not Found</h2>
+  <p>No data available for this video ID.</p>
+{% endif %}
+
+<hr style="margin:2rem 0;">
 
 {% if frames %}
-  <div style="display:grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap:1.5rem; margin-top:2rem;">
+  <div style="display:grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap:1.5rem;">
     {% for f in frames %}
     <div style="border:1px solid #ddd; padding:1rem; border-radius:8px; background:#fafafa;">
       <img src="{{ f['frame_url'] }}" alt="Frame {{ f['frame_number'] }}" style="width:100%; border-radius:6px;">
-      <p style="font-size:0.9em;"><strong>Frame {{ f['frame_number'] }}</strong></p>
-      <p style="font-size:0.85em;">{{ f['ocr_text'] }}</p>
+      <p style="font-size:0.9em; margin-top:0.5rem;"><strong>Frame {{ f['frame_number'] or 'N/A' }}</strong></p>
+      <p style="font-size:0.85em; color:#333;">{{ f['ocr_text'] }}</p>
     </div>
     {% endfor %}
   </div>
 {% else %}
-  <p>No frames found for this video.</p>
+  <p>No frames have been processed yet. Please wait for the OCR worker to finish.</p>
 {% endif %}
+
 {% endblock %}

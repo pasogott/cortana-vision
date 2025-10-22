@@ -1,19 +1,54 @@
 from fastapi import APIRouter, Request, Query
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 import sqlite3, re
+from datetime import datetime
 from app.config import settings
 
 router = APIRouter(tags=["Dashboard"])
 templates = Jinja2Templates(directory="app/templates")
+templates.env.globals['now'] = datetime.now
 
 DB_PATH = settings.database_url.replace("sqlite:///", "")
+
+# -------------------------------
+# FTS Bootstrap (ensures table & triggers)
+# -------------------------------
+def ensure_fts_index():
+    conn = sqlite3.connect(DB_PATH)
+    cur = conn.cursor()
+    try:
+        cur.executescript("""
+        CREATE VIRTUAL TABLE IF NOT EXISTS ocr_index USING fts5(
+            video_id, frame_path, ocr_text,
+            content='ocr_frames', content_rowid='rowid'
+        );
+
+        CREATE TRIGGER IF NOT EXISTS ocr_ai AFTER INSERT ON ocr_frames BEGIN
+            INSERT INTO ocr_index(rowid, video_id, frame_path, ocr_text)
+            VALUES (new.rowid, new.video_id, new.frame_path, new.ocr_text);
+        END;
+
+        CREATE TRIGGER IF NOT EXISTS ocr_ad AFTER DELETE ON ocr_frames BEGIN
+            DELETE FROM ocr_index WHERE rowid = old.rowid;
+        END;
+
+        CREATE TRIGGER IF NOT EXISTS ocr_au AFTER UPDATE ON ocr_frames BEGIN
+            UPDATE ocr_index SET ocr_text = new.ocr_text WHERE rowid = old.rowid;
+        END;
+        """)
+        conn.commit()
+    except Exception as e:
+        print(f"[SEARCH][FTS][WARN] could not ensure FTS index: {e}")
+    finally:
+        conn.close()
+
+ensure_fts_index()
 
 # -------------------------------
 # Helpers
 # -------------------------------
 def s3_url_from_key(key: str) -> str:
-    """Convert an S3 object key to a public URL."""
     base = settings.s3_url.rstrip("/")
     bucket = settings.s3_bucket
     return f"{base}/{bucket}/{key.lstrip('/')}"
@@ -31,6 +66,9 @@ def query_db(query, params=()):
     conn.close()
     return rows
 
+# -------------------------------
+# Summary & Progress
+# -------------------------------
 def get_summary():
     conn = sqlite3.connect(DB_PATH)
     cur = conn.cursor()
@@ -38,8 +76,14 @@ def get_summary():
     total_videos = cur.fetchone()[0]
     cur.execute("SELECT COUNT(*) FROM frames;")
     total_frames = cur.fetchone()[0]
-    cur.execute("SELECT COUNT(*) FROM ocr_index;")
-    indexed_frames = cur.fetchone()[0]
+
+    try:
+        cur.execute("SELECT COUNT(*) FROM ocr_index;")
+        indexed_frames = cur.fetchone()[0]
+    except sqlite3.OperationalError as e:
+        print(f"[SEARCH][WARN] FTS not ready: {e}")
+        indexed_frames = 0
+
     conn.close()
     return {
         "total_videos": total_videos,
@@ -63,9 +107,6 @@ def get_video_progress():
     return query_db(q)
 
 def get_video_frames(video_id: str):
-    """
-    Show frames using OCR records (they reliably store S3 keys).
-    """
     rows = query_db("""
         SELECT frame_path, ocr_text
         FROM ocr_frames
@@ -80,21 +121,19 @@ def get_video_frames(video_id: str):
             "frame_url": s3_url_from_key(key),
             "ocr_text": r["ocr_text"] or "",
         })
-    # sort by parsed number if available
     out.sort(key=lambda x: (x["frame_number"] is None, x["frame_number"] or 0))
     return out
 
 # -------------------------------
-# Search (FTS + LIKE fallback)
+# Search (FTS + fallback)
 # -------------------------------
 def perform_search(q: str, page: int = 1, page_size: int = 12):
     offset = (page - 1) * page_size
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     cur = conn.cursor()
-
-    # Try FTS first
     results = []
+
     try:
         cur.execute("""
             SELECT video_id, frame_path,
@@ -105,9 +144,8 @@ def perform_search(q: str, page: int = 1, page_size: int = 12):
         """, (q, page_size, offset))
         results = cur.fetchall()
     except Exception as e:
-        print(f"[SEARCH][FTS] {e}")
+        print(f"[SEARCH][FTS][WARN] {e}")
 
-    # Fallback LIKE if FTS empty/fails
     if not results:
         cur.execute("""
             SELECT video_id, frame_path, substr(ocr_text, 1, 220) AS snippet
@@ -117,13 +155,10 @@ def perform_search(q: str, page: int = 1, page_size: int = 12):
         """, (f"%{q.lower()}%", page_size, offset))
         results = cur.fetchall()
 
-    # total (LIKE is a superset for pagination)
     cur.execute("SELECT COUNT(*) FROM ocr_frames WHERE lower(ocr_text) LIKE ?;", (f"%{q.lower()}%",))
     total = cur.fetchone()[0]
-
     conn.close()
 
-    # decorate with proper URLs + filename
     decorated = []
     for r in results:
         key = r["frame_path"]
@@ -143,20 +178,17 @@ def perform_search(q: str, page: int = 1, page_size: int = 12):
 def dashboard_page(request: Request):
     stats = get_summary()
     videos = get_video_progress()
-    return templates.TemplateResponse(
-        "dashboard.html",
-        {
-            "request": request,
-            "stats": stats,
-            "videos": videos,
-            "query": "",
-            "results": [],
-            "page": 1,
-            "page_size": 12,
-            "total_pages": 0,
-            "total": 0,
-        },
-    )
+    return templates.TemplateResponse("dashboard.html", {
+        "request": request,
+        "stats": stats,
+        "videos": videos,
+        "query": "",
+        "results": [],
+        "page": 1,
+        "page_size": 12,
+        "total_pages": 0,
+        "total": 0,
+    })
 
 @router.get("/dashboard/search", response_class=HTMLResponse)
 def dashboard_search(request: Request,
@@ -165,30 +197,94 @@ def dashboard_search(request: Request,
                      page_size: int = Query(12, ge=1, le=100)):
     stats = get_summary()
     videos = get_video_progress()
-
     results, total = perform_search(q, page, page_size) if q else ([], 0)
     total_pages = (total // page_size) + (1 if total % page_size else 0)
 
-    return templates.TemplateResponse(
-        "dashboard.html",
-        {
-            "request": request,
-            "stats": stats,
-            "videos": videos,
-            "query": q,
-            "results": results,
-            "page": page,
-            "page_size": page_size,
-            "total_pages": total_pages,
-            "total": total,
-        },
-    )
+    return templates.TemplateResponse("dashboard.html", {
+        "request": request,
+        "stats": stats,
+        "videos": videos,
+        "query": q,
+        "results": results,
+        "page": page,
+        "page_size": page_size,
+        "total_pages": total_pages,
+        "total": total,
+    })
 
 @router.get("/dashboard/video/{video_id}", response_class=HTMLResponse)
 def video_detail(request: Request, video_id: str):
     stats = get_summary()
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    cur = conn.cursor()
+    cur.execute("""
+        SELECT v.id, v.filename,
+               COUNT(f.id) AS total_frames,
+               SUM(CASE WHEN f.greyscale_is_processed = 1 THEN 1 ELSE 0 END) AS processed_frames
+        FROM videos v
+        LEFT JOIN frames f ON v.id = f.video_id
+        WHERE v.id = ?
+        GROUP BY v.id, v.filename;
+    """, (video_id,))
+    video = cur.fetchone()
+    conn.close()
+
+    if not video:
+        return templates.TemplateResponse("video_detail.html", {
+            "request": request,
+            "video_id": video_id,
+            "frames": [],
+            "stats": stats,
+            "video_info": None,
+            "progress": 0,
+        }, status_code=404)
+
+    progress = round(
+        100.0 * (video["processed_frames"] or 0) / video["total_frames"], 1
+    ) if video["total_frames"] else 0
     frames = get_video_frames(video_id)
-    return templates.TemplateResponse(
-        "video_detail.html",
-        {"request": request, "stats": stats, "frames": frames, "video_id": video_id},
-    )
+
+    return templates.TemplateResponse("video_detail.html", {
+        "request": request,
+        "stats": stats,
+        "frames": frames,
+        "video_id": video_id,
+        "video_info": video,
+        "progress": progress,
+    })
+
+@router.get("/dashboard/video/{video_id}/status", response_class=JSONResponse)
+def video_status(video_id: str):
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    cur = conn.cursor()
+    cur.execute("""
+        SELECT v.id, v.filename,
+               COUNT(f.id) AS total_frames,
+               SUM(CASE WHEN f.greyscale_is_processed = 1 THEN 1 ELSE 0 END) AS processed_frames
+        FROM videos v
+        LEFT JOIN frames f ON v.id = f.video_id
+        WHERE v.id = ?
+        GROUP BY v.id, v.filename;
+    """, (video_id,))
+    video = cur.fetchone()
+    conn.close()
+
+    if not video:
+        return JSONResponse(content={"video_id": video_id, "status": "not_found"}, status_code=404)
+
+    total = video["total_frames"] or 0
+    processed = video["processed_frames"] or 0
+    progress = round(100.0 * processed / total, 1) if total > 0 else 0
+
+    status = "ready" if progress == 100 else "processing" if processed > 0 else "queued"
+
+    return JSONResponse(content={
+        "video_id": video_id,
+        "filename": video["filename"],
+        "progress": progress,
+        "processed_frames": processed,
+        "total_frames": total,
+        "status": status,
+    })

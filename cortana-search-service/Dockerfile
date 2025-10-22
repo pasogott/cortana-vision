@@ -4,7 +4,7 @@ WORKDIR /app
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential sqlite3 && \
-    pip install --no-cache-dir fastapi uvicorn jinja2 sqlalchemy boto3 pydantic-settings && \
+    pip install --no-cache-dir fastapi uvicorn jinja2 sqlalchemy boto3 pydantic-settings redis && \
     rm -rf /var/lib/apt/lists/*
 
 COPY app ./app

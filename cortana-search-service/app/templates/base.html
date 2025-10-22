@@ -1,16 +1,45 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <title>Cortana Search</title>
-  <link rel="stylesheet" href="/static/style.css">
-</head>
-<body>
-  <header>
-    <h1><a href="/search">🔍 Cortana Search</a></h1>
-  </header>
-  <main>
-    {% block content %}{% endblock %}
-  </main>
-</body>
-</html>
+{% block content %}
+
+<h1 style="margin-bottom:1rem;">🔍 Video OCR Search</h1>
+
+<form method="get" action="/search" style="display:flex; flex-wrap:wrap; gap:0.8rem; margin-bottom:2rem;">
+  <select name="video_id" required style="padding:0.6em; border-radius:8px; border:1px solid #ccc;">
+    <option value="">-- Select a Video --</option>
+    {% for v in videos %}
+      <option value="{{ v.id }}" {% if v.id == video_id %}selected{% endif %}>{{ v.filename }}</option>
+    {% endfor %}
+  </select>
+
+  <input type="text" name="q" value="{{ query }}" placeholder="Search inside selected video..."
+         style="flex:1; padding:0.6em; border-radius:8px; border:1px solid #ccc;" required>
+
+  <button type="submit" style="padding:0.6em 1em; border-radius:8px; background:#007BFF; color:white;">
+    Search
+  </button>
+</form>
+
+{% if selected_video %}
+  <h2>🎞 Searching in: {{ selected_video.filename }}</h2>
+{% endif %}
+
+{% if query %}
+  <h3 style="margin-top:1rem;">Results for “{{ query }}”</h3>
+
+  {% if results %}
+    <div style="display:grid; grid-template-columns:repeat(auto-fill,minmax(260px,1fr)); gap:1.2rem; margin-top:1rem;">
+      {% for r in results %}
+      <div style="border:1px solid #ddd; padding:1rem; border-radius:8px; background:#fafafa;">
+        <a href="{{ r['frame_path'] }}" target="_blank">
+          <img src="{{ r['frame_path'] }}" alt="frame" style="width:100%; border-radius:6px; margin-bottom:0.5rem;">
+        </a>
+        <small>{{ r['video_id'] }}</small><br>
+        <p style="font-size:0.9em;">{{ r['snippet']|safe }}</p>
+      </div>
+      {% endfor %}
+    </div>
+  {% else %}
+    <p style="margin-top:1rem;">No matches found in this video.</p>
+  {% endif %}
+{% endif %}
+
+{% endblock %}

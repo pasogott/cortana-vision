@@ -1,17 +1,11 @@
 {% extends "base.html" %}
 {% block content %}
 
-<h1>🎥 Cortana Dashboard</h1>
-
-<form method="get" action="/dashboard/search" style="margin-bottom: 2rem;">
-  <input type="text" name="q" value="{{ query }}" placeholder="Search OCR text..." autofocus
-         style="padding: 0.6em; width: 60%; border-radius: 8px; border: 1px solid #ccc;">
-  <button type="submit" style="padding: 0.6em 1em; border-radius: 8px;">Search</button>
-</form>
+<h1 style="margin-bottom: 1.5rem;">🎥 Cortana Dashboard</h1>
 
 <section style="margin-bottom: 2rem;">
   <h2>📊 Overview</h2>
-  <div style="display: flex; gap: 2rem; flex-wrap: wrap;">
+  <div style="display: flex; gap: 2rem; flex-wrap: wrap; font-size: 1.1em;">
     <div><strong>Total Videos:</strong> {{ stats.total_videos }}</div>
     <div><strong>Total Frames:</strong> {{ stats.total_frames }}</div>
     <div><strong>Indexed Frames:</strong> {{ stats.indexed_frames }}</div>
@@ -19,74 +13,69 @@
 </section>
 
 <section style="margin-bottom: 2rem;">
-  <h2>🎞 Video Progress</h2>
+  <h2>🎞 Processing Status</h2>
   {% if videos %}
-  <table border="1" cellspacing="0" cellpadding="6" style="border-collapse: collapse; width: 100%;">
+  <table id="videos-table" border="1" cellspacing="0" cellpadding="6" style="border-collapse: collapse; width: 100%; font-size: 0.95em;">
     <thead style="background: #f5f5f5;">
       <tr>
-        <th>Video ID</th>
-        <th>Filename</th>
+        <th style="text-align:left;">Video ID</th>
+        <th style="text-align:left;">Filename</th>
         <th>Total Frames</th>
-        <th>Processed</th>
-        <th>Progress</th>
-        <th>View</th>
       </tr>
     </thead>
     <tbody>
       {% for v in videos %}
-      <tr>
+      <tr data-video-id="{{ v.video_id }}">
         <td>{{ v.video_id }}</td>
         <td>{{ v.filename }}</td>
-        <td>{{ v.total_frames }}</td>
-        <td>{{ v.processed_frames }}</td>
-        <td>
-          <div style="background:#ddd; border-radius:6px; width:100%; height:10px; position:relative;">
-            <div style="background:#4CAF50; width:{{ v.progress or 0 }}%; height:10px; border-radius:6px;"></div>
-          </div>
-          <small>{{ v.progress or 0 }}%</small>
-        </td>
+        <td style="text-align:center;" class="total">{{ v.total_frames }}</td>
+   
+    
         <td style="text-align:center;">
-          <a href="/dashboard/video/{{ v.video_id }}">View Frames</a>
+          <a href="/dashboard/video/{{ v.video_id }}" style="text-decoration:none; color:#007BFF;">View Frames</a>
         </td>
       </tr>
       {% endfor %}
     </tbody>
   </table>
   {% else %}
-  <p>No videos found yet.</p>
+  <p>No videos uploaded yet.</p>
   {% endif %}
 </section>
 
-{% if query %}
-  <section style="margin-top: 3rem;">
-    <h2>🔍 Results for “{{ query }}”</h2>
-    {% if results %}
-      <div style="display:grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap:1.2rem;">
-        {% for r in results %}
-        <div style="border:1px solid #ddd; padding:1rem; border-radius:8px; background:#fafafa;">
-          <a href="{{ r['frame_url'] }}" target="_blank" title="{{ r['filename'] }}">
-            <img src="{{ r['frame_url'] }}" alt="{{ r['filename'] }}" style="width:100%; border-radius:6px; margin-bottom:0.5rem;">
-          </a>
-          <strong>{{ r['video_id'] }}</strong><br>
-          <small>{{ r['filename'] }}</small>
-          <p style="font-size:0.9em; margin-top:0.5rem;">{{ r['snippet']|safe }}</p>
-        </div>
-        {% endfor %}
-      </div>
+<div style="margin-top: 3rem; text-align:center;">
+  <a href="/search" 
+     style="padding: 0.8em 1.5em; background:#007BFF; color:white; border-radius:8px; text-decoration:none; font-weight:500;">
+     🔍 Go to Search
+  </a>
+</div>
 
-      <div style="margin-top:1em; text-align:center;">
-        {% if page > 1 %}
-          <a href="?q={{ query }}&page={{ page - 1 }}&page_size={{ page_size }}">⬅ Prev</a>
-        {% endif %}
-        <span> Page {{ page }} / {{ total_pages }} ({{ total }} results)</span>
-        {% if page < total_pages %}
-          <a href="?q={{ query }}&page={{ page + 1 }}&page_size={{ page_size }}">Next ➡</a>
-        {% endif %}
-      </div>
-    {% else %}
-      <p>No matches found.</p>
-    {% endif %}
-  </section>
-{% endif %}
+<script>
+// Auto-refresh progress for each video every 5s
+async function refreshProgress() {
+  const rows = document.querySelectorAll('#videos-table tbody tr');
+  for (const row of rows) {
+    const videoId = row.dataset.videoId;
+    const resp = await fetch(`/dashboard/video/${videoId}/status`);
+    const data = await resp.json();
+    if (data && data.status !== "not_found") {
+      row.querySelector('.total').textContent = data.total_frames;
+      row.querySelector('.processed').textContent = data.processed_frames;
+      row.querySelector('.progress-fill').style.width = `${data.progress}%`;
+      row.querySelector('.progress-text').textContent = `${data.progress}%`;
+      const statusCell = row.querySelector('.status');
+      if (data.status === "ready") {
+        statusCell.innerHTML = "<span style='color:green; font-weight:bold;'>✅ Ready</span>";
+      } else if (data.status === "processing") {
+        statusCell.innerHTML = "<span style='color:orange; font-weight:bold;'>⏳ Processing</span>";
+      } else {
+        statusCell.innerHTML = "<span style='color:gray;'>Queued</span>";
+      }
+    }
+  }
+}
+
+setInterval(refreshProgress, 5000);
+</script>
 
 {% endblock %}

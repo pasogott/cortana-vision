@@ -1,17 +1,21 @@
+import os
 from pydantic_settings import BaseSettings
 
 class Settings(BaseSettings):
     # --- App ---
     APP_NAME: str = "Cortana API Service"
 
-    # --- Redis ---
-    REDIS_URL: str = "redis://redis:6379/0"
+    # --- Database ---
+    DATABASE_URL: str = os.getenv("DATABASE_URL", "sqlite:////app/data/snapshot.db")
 
-    # --- Local storage ---
+    # --- Redis ---
+    REDIS_URL: str = "redis://cortana-redis:6379/0"
+
+    # --- Storage ---
     STORAGE_BACKEND: str = "local"
     STORAGE_BUCKET: str = "cortana-videos"
     UPLOAD_DIR: str = "uploads"
-    storage_provider: str = "hetzner"
+    STORAGE_PROVIDER: str = "hetzner"
 
     # --- S3 / Hetzner Object Storage ---
     S3_URL: str = ""
@@ -23,6 +27,5 @@ class Settings(BaseSettings):
 
     class Config:
         env_file = ".env"
-
 
 settings = Settings()

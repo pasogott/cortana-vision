@@ -1,16 +1,33 @@
-import os
+# cortana-ocr-service/app/config.py
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
-class Settings:
-    app_name = "Cortana OCR Worker"
-    redis_url = os.getenv("REDIS_URL", "redis://cortana-redis:6379/0")
-    jobs_channel = os.getenv("JOBS_CHANNEL", "cortana-jobs")
-    event_ocr = os.getenv("EVENT_OCR", "run-ocr-from-greyscaled-samples")
-    s3_url = os.getenv("S3_URL")
-    s3_bucket = os.getenv("S3_BUCKET")
-    s3_access_key = os.getenv("S3_ACCESS_KEY")
-    s3_secret_key = os.getenv("S3_SECRET_KEY")
-    region = os.getenv("REGION")
-    tmp_dir = os.getenv("TMP_DIR", "/app/tmp")
-    database_url = os.getenv("DATABASE_URL", "sqlite:////app/data/snapshot.db")
+class Settings(BaseSettings):
+    # Core
+    app_name: str = "Cortana OCR"
+    database_url: str = "sqlite:////app/data/snapshot.db"
+    redis_url: str = "redis://cortana-redis:6379/0"
+
+    # Channels
+    jobs_channel: str = "cortana-jobs"
+    events_channel: str = "cortana-events"
+
+    # Event names
+    event_samples: str = "make-samples-from-video"
+    event_greyscale: str = "make-greyscale-from-samples"
+    event_ocr: str = "run-ocr-from-greyscaled-samples"
+    event_ocr_update: str = "ocr-index-updated"
+
+    # Object storage (Hetzner / S3 compatible)
+    s3_url: str | None = None
+    s3_bucket: str | None = None
+    s3_access_key: str | None = None
+    s3_secret_key: str | None = None
+    region: str | None = None
+    storage_provider: str | None = None
+
+    # Misc
+    tmp_dir: str = "/app/tmp"
+
+    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
 settings = Settings()
