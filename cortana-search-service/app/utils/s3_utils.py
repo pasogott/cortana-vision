@@ -1,33 +1,32 @@
-import boto3
-from botocore.exceptions import ClientError
 import os
+import boto3
+from botocore.config import Config
+from typing import Optional
 
 S3_URL = os.getenv("S3_URL")
 S3_BUCKET = os.getenv("S3_BUCKET")
 S3_ACCESS_KEY = os.getenv("S3_ACCESS_KEY")
 S3_SECRET_KEY = os.getenv("S3_SECRET_KEY")
-REGION = os.getenv("REGION")
+REGION = os.getenv("REGION") or "us-east-1"
 
-s3 = boto3.client(
+_session = boto3.session.Session()
+s3 = _session.client(
     "s3",
     aws_access_key_id=S3_ACCESS_KEY,
     aws_secret_access_key=S3_SECRET_KEY,
     region_name=REGION,
+    endpoint_url=S3_URL or None,
+    config=Config(s3={"addressing_style": "virtual"}) if S3_URL else None,
 )
 
-def list_ocr_files(prefix="videos/"):
-    try:
-        objs = s3.list_objects_v2(Bucket=S3_BUCKET, Prefix=prefix)
-        if "Contents" not in objs:
-            return []
-        return [obj["Key"] for obj in objs["Contents"] if obj["Key"].endswith(".txt")]
-    except ClientError as e:
-        print(f"[S3][ERR] {e}")
-        return []
+def presign_get_url(key: str, expires_in: int = 3600, content_type: Optional[str] = None) -> str:
+    params = {"Bucket": S3_BUCKET, "Key": key}
+    if content_type:
+        params["ResponseContentType"] = content_type
+    return s3.generate_presigned_url("get_object", Params=params, ExpiresIn=expires_in)
 
-def download_from_s3(key: str, local_path: str):
-    try:
-        s3.download_file(S3_BUCKET, key, local_path)
-        print(f"[S3] ✅ {key} → {local_path}")
-    except ClientError as e:
-        print(f"[S3][ERR] {e}")
+def presign_put_url(key: str, expires_in: int = 3600, content_type: Optional[str] = None) -> str:
+    params = {"Bucket": S3_BUCKET, "Key": key}
+    if content_type:
+        params["ContentType"] = content_type
+    return s3.generate_presigned_url("put_object", Params=params, ExpiresIn=expires_in)

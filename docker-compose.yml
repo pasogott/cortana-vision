@@ -154,6 +154,34 @@ services:
       retries: 30
       start_period: 10s
 
+  next-service:
+    build: ./cortana-next-service
+    container_name: cortana-next
+    restart: always
+    ports: ["3000:3000"]
+    volumes:
+      - ./cortana-next-service:/app          # project code
+      - ./data:/app/data                     # bind sqlite DB
+    environment:
+      - NODE_ENV=development
+      - NEXT_PUBLIC_SEARCH_API_URL=http://167.235.203.43:8080
+      - SEARCH_INTERNAL_URL=http://cortana-search:8080
+    depends_on:
+      api-service:
+        condition: service_healthy
+    networks: [cortana-net]
+    command: >
+      sh -c "npm install && npm run dev"
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - curl -f http://localhost:3000 || exit 1
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+
   # -------------------- SEARCH -------------------
   search-service:
     build: ./cortana-search-service
