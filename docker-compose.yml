@@ -211,6 +211,35 @@ services:
       retries: 30
       start_period: 10s
 
+  #--------------------- DEEPSEEK OCR -------------------
+  deepseek-ocr:
+    build: ./cortana-deepseek-ocr
+    container_name: cortana-deepseek-ocr
+    restart: always
+    ports: ["8050:8050"]
+    volumes:
+      - ./cortana-deepseek-ocr/src:/app/src
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              capabilities: [gpu]
+    networks: [cortana-net]
+    command: >
+      bash -c "source .venv/bin/activate && uvicorn src.main:app --host 0.0.0.0 --port 8050 --access-log"
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - >
+          python3 -c "import socket; s=socket.create_connection(('localhost',8050),2.0); s.close()"
+      interval: 5s
+      timeout: 3s
+      retries: 30
+      start_period: 10s
+
+
+
   # --------------------- REDIS -------------------
   redis:
     image: redis:7
@@ -236,3 +265,4 @@ volumes:
   uploads-data:
   db-data:
   redis-data:
+  deepseek-cache:

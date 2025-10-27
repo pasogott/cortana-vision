@@ -16,6 +16,7 @@ export default function SearchPage() {
   const [total, setTotal] = useState(0);
   const [err, setErr] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [expanded, setExpanded] = useState<any | null>(null);
 
   const totalPages = useMemo(() => {
     if (!total || !pageSize) return 1;
@@ -71,17 +72,29 @@ export default function SearchPage() {
   };
 
   return (
-    <main className="min-h-screen bg-white">
+    <main className="min-h-screen bg-white text-[#0A0A0A] relative">
+      {/* Header */}
       <header className="border-b border-blue-100">
         <div className="mx-auto max-w-6xl px-4 py-6 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <Link href="/" className="rounded-lg border border-blue-200 px-3 py-1.5 text-blue-700 hover:bg-blue-50">Dashboard</Link>
-            <Link href="/search" className="rounded-lg border border-blue-200 px-3 py-1.5 text-blue-700 hover:bg-blue-50">Search</Link>
+            <Link
+              href="/"
+              className="rounded-lg border border-blue-200 px-3 py-1.5 text-blue-700 hover:bg-blue-50"
+            >
+              Dashboard
+            </Link>
+            <Link
+              href="/search"
+              className="rounded-lg border border-blue-200 px-3 py-1.5 text-blue-700 hover:bg-blue-50"
+            >
+              Search
+            </Link>
           </div>
           <h1 className="text-xl font-semibold text-blue-700">Search</h1>
         </div>
       </header>
 
+      {/* Search Input */}
       <section className="mx-auto max-w-6xl px-4 py-8">
         <form onSubmit={onSubmit} className="flex items-center gap-3">
           <input
@@ -89,7 +102,7 @@ export default function SearchPage() {
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Find text inside frames…"
-            className="w-full rounded-xl border border-blue-200 px-4 py-2.5 text-blue-950 placeholder-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-400"
+            className="w-full rounded-xl border border-blue-200 px-4 py-2.5 text-[#000] placeholder-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-400"
           />
           <button
             type="submit"
@@ -99,23 +112,35 @@ export default function SearchPage() {
           </button>
         </form>
 
+        {/* Search Status */}
         <div className="mt-4 text-sm text-blue-800">
-          {loading ? "Searching…" : (q.get("q") ? `${total} result(s)` : "Type a query and hit Search")}
+          {loading
+            ? "Searching…"
+            : q.get("q")
+            ? `${total} result(s)`
+            : "Type a query and hit Search"}
         </div>
 
+        {/* Error */}
         {err && (
-          <div className="mt-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{err}</div>
+          <div className="mt-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+            {err}
+          </div>
         )}
 
+        {/* Results Grid */}
         {!!items.length && (
           <div className="mt-6 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4">
             {items.map((it, i) => {
-              const name = it.filename ?? (it.key ? String(it.key).split("/").pop() : null) ?? `frame_${it.frame_number ?? ""}`;
+              const name =
+                it.filename ??
+                (it.key ? String(it.key).split("/").pop() : null) ??
+                `frame_${it.frame_number ?? ""}`;
               return (
-                <Link
-                  key={`${it.key || it.url}-${it.frame_number ?? i}`}
-                  href={`/video/${it.video_id}`}
-                  className="group rounded-xl border border-blue-100 p-3 hover:shadow-sm"
+                <div
+                  key={`${it.key || it.url}-${i}`}
+                  className="group rounded-xl border border-blue-100 p-3 hover:shadow-sm cursor-pointer"
+                  onClick={() => setExpanded(it)}
                 >
                   <div className="overflow-hidden rounded-lg bg-blue-50">
                     <img
@@ -126,19 +151,24 @@ export default function SearchPage() {
                       referrerPolicy="no-referrer"
                     />
                   </div>
-                  <div className="mt-3 text-sm text-blue-900 truncate">{name}</div>
+                  <div className="mt-3 text-sm text-blue-900 truncate">
+                    {name}
+                  </div>
                   {!!it.snippet && (
                     <div
                       className="mt-1 text-xs text-blue-700 line-clamp-3"
-                      dangerouslySetInnerHTML={{ __html: String(it.snippet) }}
+                      dangerouslySetInnerHTML={{
+                        __html: String(it.snippet),
+                      }}
                     />
                   )}
-                </Link>
+                </div>
               );
             })}
           </div>
         )}
 
+        {/* Pagination */}
         {!!items.length && (
           <div className="mt-8 flex items-center justify-between">
             <button
@@ -148,7 +178,9 @@ export default function SearchPage() {
             >
               Prev
             </button>
-            <div className="text-sm text-blue-900">{page} / {totalPages}</div>
+            <div className="text-sm text-blue-900">
+              {page} / {totalPages}
+            </div>
             <button
               className="rounded-lg border border-blue-200 px-3 py-1.5 text-blue-700 disabled:opacity-50 hover:bg-blue-50"
               onClick={() => onPage(Math.min(totalPages, page + 1))}
@@ -159,6 +191,48 @@ export default function SearchPage() {
           </div>
         )}
       </section>
+
+      {/* Expanded Modal */}
+      {expanded && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-2xl max-w-5xl w-full max-h-[90vh] overflow-auto relative">
+            <button
+              onClick={() => setExpanded(null)}
+              className="absolute top-3 right-3 bg-blue-600 text-white px-3 py-1.5 rounded-lg text-sm hover:bg-blue-700"
+            >
+              Close
+            </button>
+
+            <div className="p-6">
+              <div className="flex flex-col items-center">
+                <img
+                  src={expanded.url}
+                  alt="Expanded view"
+                  className="max-h-[70vh] w-auto rounded-lg shadow-md mb-4"
+                />
+                <div className="text-xs text-gray-600 mb-2">
+                  {expanded.filename || expanded.key}
+                </div>
+              </div>
+
+              <div className="border-t border-blue-100 pt-4 mt-4">
+                <h2 className="text-blue-700 font-semibold mb-2 text-sm">
+                  Full OCR Text
+                </h2>
+                {expanded.ocr_text ? (
+                  <pre className="text-sm text-blue-950 whitespace-pre-wrap bg-blue-50 p-3 rounded-lg">
+                    {expanded.ocr_text}
+                  </pre>
+                ) : (
+                  <p className="text-sm text-gray-500 italic">
+                    No OCR text available.
+                  </p>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   );
 }
