@@ -1,7 +1,7 @@
 [project]
 name = "cortana-ocr-service"
 version = "0.1.0"
-description = "OCR worker for Cortana distributed video processing pipeline"
+description = "OCR worker"
 requires-python = ">=3.11"
 
 dependencies = [
@@ -11,6 +11,14 @@ dependencies = [
     "pydantic-settings>=2.0",
     "sqlalchemy",
     "pillow",
-    "pytesseract",
     "opencv-python-headless",
+
+    # OCR stack (compatible)
+    "numpy<2",
+    "torch==2.0.1+cpu",
+    "torchvision==0.15.2+cpu",
+    "easyocr==1.7.1",
 ]
+
+[tool.uv.pip]
+extra-index-url = ["https://download.pytorch.org/whl/cpu"]

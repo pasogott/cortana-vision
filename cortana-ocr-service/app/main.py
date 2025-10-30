@@ -1,4 +1,3 @@
-# app/main.py (OCR service example)
 from app.worker import listen_for_jobs
 from app.utils.db_integrity import ensure_integrity
 

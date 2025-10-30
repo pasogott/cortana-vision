@@ -1,5 +1,6 @@
+version: '3.9'
+
 services:
-  # --------------------- API ---------------------
   api-service:
     build: ./cortana-api-service
     container_name: cortana-api
@@ -7,9 +8,9 @@ services:
     ports: ["8000:8000"]
     env_file: [.env]
     volumes:
-      - ./cortana-api-service/app:/app/app           # code hot-reload
-      - uploads-data:/app/uploads                    # named volume (fixes perms)
-      - db-data:/app/data                            # named volume (fixes perms)
+      - ./cortana-api-service/app:/app/app
+      - uploads-data:/app/uploads
+      - db-data:/app/data
     environment:
       - PYTHONUNBUFFERED=1
       - DATABASE_URL=sqlite:////app/data/snapshot.db
@@ -19,8 +20,10 @@ services:
         condition: service_healthy
     networks: [cortana-net]
     command: >
-      bash -c "uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
-               --access-log --limit-max-request 2147483648"
+      bash -c "
+      pip install -r /app/requirements.txt >/dev/null 2>&1 || true &&
+      uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload --access-log --limit-max-requests 2147483648
+      "
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS http://localhost:8000/ >/dev/null || exit 1"]
       interval: 5s
@@ -28,7 +31,6 @@ services:
       retries: 20
       start_period: 10s
 
-  # ------------------- SAMPLER -------------------
   sampler-service:
     build: ./cortana-sampler-service
     container_name: cortana-sampler
@@ -54,26 +56,19 @@ services:
         condition: service_healthy
     networks: [cortana-net]
     command: >
-      bash -c "if [ \"${MODE:-dev}\" = 'dev' ]; then
-                 python -m pip install --no-cache-dir watchfiles >/dev/null 2>&1 || true;
-                 watchfiles --ignore-paths /app/tmp --filter python 'python -m app.main' /app/app;
-               else
-                 python -m app.main;
-               fi"
+      bash -c "
+      pip install -r /app/requirements.txt >/dev/null 2>&1 || true &&
+      sleep 5 &&
+      python -m pip install watchfiles >/dev/null 2>&1 || true &&
+      watchfiles --ignore-paths /app/tmp --filter python 'python -m app.main' /app/app
+      "
     healthcheck:
-      test:
-        - CMD-SHELL
-        - >
-          python -c "import os,socket,importlib; importlib.import_module('app.main');
-          u=os.getenv('REDIS_URL','redis://cortana-redis:6379/0');
-          hp=u.split('://',1)[-1].split('/',1)[0]; host,port=(hp.split(':',1)+['6379'])[:2];
-          s=socket.create_connection((host,int(port)),2.0); s.close()"
-      interval: 10s
-      timeout: 5s
-      retries: 30
-      start_period: 10s
+      test: ["CMD-SHELL", "echo 1"]
+      interval: 5s
+      timeout: 2s
+      retries: 1
+      start_period: 1s
 
-  # ------------------ GREYSCALE ------------------
   greyscale-service:
     build: ./cortana-greyscale-service
     container_name: cortana-greyscale
@@ -97,21 +92,20 @@ services:
         condition: service_healthy
     networks: [cortana-net]
     command: >
-      bash -c "python -m app.main"
+      bash -c "
+      if [ ! -f /tmp/installed ]; then
+        pip install -r /app/requirements.txt >/dev/null 2>&1 && touch /tmp/installed;
+      fi &&
+      python -m app.main
+      "
     healthcheck:
-      test:
-        - CMD-SHELL
-        - >
-          python -c "import os,socket,importlib; importlib.import_module('app.main');
-          u=os.getenv('REDIS_URL','redis://cortana-redis:6379/0');
-          hp=u.split('://',1)[-1].split('/',1)[0]; host,port=(hp.split(':',1)+['6379'])[:2];
-          s=socket.create_connection((host,int(port)),2.0); s.close()"
-      interval: 10s
-      timeout: 5s
-      retries: 30
-      start_period: 20s
+      test: ["CMD-SHELL", "echo 1"]
+      interval: 5s
+      timeout: 2s
+      retries: 1
+      start_period: 1s
 
-  # ---------------------- OCR --------------------
+
   ocr-service:
     build: ./cortana-ocr-service
     container_name: cortana-ocr
@@ -125,7 +119,7 @@ services:
       - DATABASE_URL=sqlite:////app/data/snapshot.db
       - REDIS_URL=redis://cortana-redis:6379/0
       - JOBS_CHANNEL=cortana-jobs
-      - EVENTS_CHANNEL=cortana-events     # <— add this to api/sampler/greyscale/ocr/search
+      - EVENTS_CHANNEL=cortana-events
       - EVENT_SAMPLES=make-samples-from-video
       - EVENT_GREYSCALE=make-greyscale-from-samples
       - EVENT_OCR=run-ocr-from-greyscaled-samples
@@ -140,49 +134,19 @@ services:
         condition: service_healthy
     networks: [cortana-net]
     command: >
-      bash -c "python -m app.main"
+      bash -c "
+      if [ ! -f /tmp/installed ]; then
+        pip install -r /app/requirements.txt >/dev/null 2>&1 && touch /tmp/installed;
+      fi &&
+      python -m app.main
+      "
     healthcheck:
-      test:
-        - CMD-SHELL
-        - >
-          python -c "import os,socket,importlib; importlib.import_module('app.main');
-          u=os.getenv('REDIS_URL','redis://cortana-redis:6379/0');
-          hp=u.split('://',1)[-1].split('/',1)[0]; host,port=(hp.split(':',1)+['6379'])[:2];
-          s=socket.create_connection((host,int(port)),2.0); s.close()"
+      test: ["CMD-SHELL", "redis-cli -h cortana-redis ping"]
       interval: 10s
       timeout: 5s
       retries: 30
-      start_period: 10s
+      start_period: 20s
 
-  next-service:
-    build: ./cortana-next-service
-    container_name: cortana-next
-    restart: always
-    ports: ["3000:3000"]
-    volumes:
-      - ./cortana-next-service:/app          # project code
-      - ./data:/app/data                     # bind sqlite DB
-    environment:
-      - NODE_ENV=development
-      - NEXT_PUBLIC_SEARCH_API_URL=http://167.235.203.43:8080
-      - SEARCH_INTERNAL_URL=http://cortana-search:8080
-    depends_on:
-      api-service:
-        condition: service_healthy
-    networks: [cortana-net]
-    command: >
-      sh -c "npm install && npm run dev"
-    healthcheck:
-      test:
-        - CMD-SHELL
-        - curl -f http://localhost:3000 || exit 1
-      interval: 10s
-      timeout: 5s
-      retries: 10
-      start_period: 10s
-
-
-  # -------------------- SEARCH -------------------
   search-service:
     build: ./cortana-search-service
     container_name: cortana-search
@@ -195,52 +159,52 @@ services:
     depends_on:
       redis:
         condition: service_healthy
-      ocr-service:
+      api-service:
         condition: service_healthy
     networks: [cortana-net]
-    # Use uvicorn so the container stays up
     command: >
       bash -c "uvicorn app.main:app --host 0.0.0.0 --port 8080 --access-log"
     healthcheck:
-      test:
-        - CMD-SHELL
-        - >
-          python -c "import socket; s=socket.create_connection(('localhost',8080),2.0); s.close()"
+      test: ["CMD-SHELL", "python -c \"import socket; s=socket.create_connection(('localhost',8080),2.0); s.close()\""]
       interval: 5s
       timeout: 3s
       retries: 30
       start_period: 10s
 
-  #--------------------- DEEPSEEK OCR -------------------
-  deepseek-ocr:
-    build: ./cortana-deepseek-ocr
-    container_name: cortana-deepseek-ocr
+  next-service:
+    build: ./cortana-next-service
+    container_name: cortana-next
     restart: always
-    ports: ["8050:8050"]
+    ports: ["3000:3000"]
     volumes:
-      - ./cortana-deepseek-ocr/src:/app/src
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              capabilities: [gpu]
+      - ./cortana-next-service:/app
+      - node_modules_cache:/app/node_modules
+      - ./data:/app/data
+    environment:
+      - NODE_ENV=development
+      - NEXT_PUBLIC_SEARCH_API_URL=http://cortana-search:8080
+      - SEARCH_INTERNAL_URL=http://cortana-search:8080
+      - SHELL=/bin/sh
+    depends_on:
+      api-service:
+        condition: service_healthy
+      search-service:
+        condition: service_healthy
     networks: [cortana-net]
     command: >
-      bash -c "source .venv/bin/activate && uvicorn src.main:app --host 0.0.0.0 --port 8050 --access-log"
+      sh -c "
+      if [ ! -d node_modules ]; then npm install; fi &&
+      mkdir -p /app/.next &&
+      chown -R node:node /app/.next &&
+      npm run dev
+      "
     healthcheck:
-      test:
-        - CMD-SHELL
-        - >
-          python3 -c "import socket; s=socket.create_connection(('localhost',8050),2.0); s.close()"
-      interval: 5s
-      timeout: 3s
-      retries: 30
+      test: ["CMD-SHELL", "curl -f http://localhost:3000 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
       start_period: 10s
 
-
-
-  # --------------------- REDIS -------------------
   redis:
     image: redis:7
     container_name: cortana-redis
@@ -265,4 +229,4 @@ volumes:
   uploads-data:
   db-data:
   redis-data:
-  deepseek-cache:
+  node_modules_cache:
