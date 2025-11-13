@@ -1,29 +1,29 @@
-name: api-gateway • build & push
+name: s3-cron-scanner • build & push
 
 on:
   push:
     branches: [production, development]
     paths:
-      - "services/api-gateway/**"
+      - "services/s3-cron-scanner/**"
       - "cortana_common/**"
-      - ".github/workflows/api-gateway.yml"
+      - ".github/workflows/s3-cron-scanner.yml"
       - ".github/workflows/reusable-python-service.yml"
   pull_request:
     paths:
-      - "services/api-gateway/**"
+      - "services/s3-cron-scanner/**"
       - "cortana_common/**"
   workflow_dispatch: {}
 
 concurrency:
-  group: api-gateway-${{ github.ref }}
+  group: s3-cron-scanner-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
   build:
     uses: ./.github/workflows/reusable-python-service.yml
     with:
-      service_name: api-gateway
-      service_path: services/api-gateway
+      service_name: s3-cron-scanner
+      service_path: services/s3-cron-scanner
       python_version: "3.12"
       install_ffmpeg: false
       run_tests: true
