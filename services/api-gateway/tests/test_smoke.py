@@ -4,6 +4,7 @@
 def test_import():
     """Test that the package can be imported."""
     import cortana_api_gateway
+
     assert cortana_api_gateway is not None
 
 
