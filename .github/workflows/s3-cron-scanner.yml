@@ -49,6 +49,10 @@ jobs:
   build:
     name: Build & Push
     needs: [test, lint, ruff]
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
     uses: ./.github/workflows/reusable-python-service.yml
     with:
       service_name: s3-cron-scanner
