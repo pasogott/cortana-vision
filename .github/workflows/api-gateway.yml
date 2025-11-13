@@ -40,8 +40,8 @@ jobs:
             - name: Test (unit)
               working-directory: services/api-gateway
               run: |
-                  uv sync
-                  uv run pytest -q
+                  uv sync --extra dev
+                  uv run -m pytest -q
 
             - name: Set up Docker Buildx
               uses: docker/setup-buildx-action@v3
@@ -70,7 +70,7 @@ jobs:
             - name: Build & push
               uses: docker/build-push-action@v6
               with:
-                  context: services/api-gateway
+                  context: .
                   file: services/api-gateway/Dockerfile
                   push: ${{ github.event_name != 'pull_request' }}
                   tags: ${{ steps.meta.outputs.tags }}
