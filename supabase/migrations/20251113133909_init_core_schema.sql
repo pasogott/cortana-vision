@@ -1,4 +1,5 @@
 create extension if not exists "pg_trgm";
+create extension if not exists "pgcrypto";
 
 create type job_type as enum (
   'transcode',
@@ -56,12 +57,12 @@ create policy "Users can view their own videos"
   on videos for select
   using (auth.uid() = owner_id);
 
-create policy "Users can view team videos"
-  on videos for select
-  using (team_id is not null and exists (
-    select 1 from auth.users
-    where auth.uid() = id
-  ));
+-- create policy "Users can view team videos"
+--   on videos for select
+--   using (team_id is not null and exists (
+--     select 1 from team_members
+--     and team_members.user_id = auth.uid()
+--   ));
 
 create policy "Users can insert their own videos"
   on videos for insert
@@ -70,6 +71,10 @@ create policy "Users can insert their own videos"
 create policy "Users can update their own videos"
   on videos for update
   using (auth.uid() = owner_id);
+
+create policy "Service role can update videos"
+  on videos for update
+  using ((auth.jwt() ->> 'role') = 'service_role');
 
 create table jobs (
   id uuid primary key default gen_random_uuid(),
@@ -89,6 +94,21 @@ create index idx_jobs_job_type on jobs(job_type);
 create index idx_jobs_status on jobs(status);
 create index idx_jobs_created_at on jobs(created_at desc);
 create index idx_jobs_status_job_type on jobs(status, job_type);
+
+alter table jobs enable row level security;
+
+create policy "Users can view jobs for their videos"
+  on jobs for select
+  using (exists (
+    select 1 from videos
+    where videos.id = jobs.video_id
+    and videos.owner_id = auth.uid()
+  ));
+
+create policy "Service role can manage jobs"
+  on jobs for all
+  using ((auth.jwt() ->> 'role') = 'service_role')
+  with check ((auth.jwt() ->> 'role') = 'service_role');
 
 create table segments (
   id uuid primary key default gen_random_uuid(),
@@ -113,7 +133,7 @@ create index idx_segments_text_hash on segments(text_hash);
 create index idx_segments_t_start on segments(t_start);
 create index idx_segments_t_end on segments(t_end);
 
-create index idx_segments_normalized_text_fts on segments using gin(to_tsvector('english', normalized_text));
+create index idx_segments_normalized_text_fts on segments using gin(to_tsvector('simple', normalized_text));
 
 create index idx_segments_normalized_text_trgm on segments using gin(normalized_text gin_trgm_ops);
 
@@ -123,20 +143,20 @@ create policy "Users can view their own segments"
   on segments for select
   using (auth.uid() = owner_id);
 
-create policy "Users can view team segments"
-  on segments for select
-  using (team_id is not null and exists (
-    select 1 from auth.users
-    where auth.uid() = id
-  ));
+-- create policy "Users can view team segments"
+--   on segments for select
+--   using (team_id is not null and exists (
+--     select 1 from team_members
+--     and team_members.user_id = auth.uid()
+--   ));
 
 create policy "Service role can insert segments"
   on segments for insert
-  with check (true);
+  with check ((auth.jwt() ->> 'role') = 'service_role');
 
 create policy "Service role can update segments"
   on segments for update
-  using (true);
+  using ((auth.jwt() ->> 'role') = 'service_role');
 
 create table entities (
   id uuid primary key default gen_random_uuid(),
@@ -162,17 +182,17 @@ create policy "Users can view entities from their segments"
     and segments.owner_id = auth.uid()
   ));
 
-create policy "Users can view entities from team segments"
-  on entities for select
-  using (exists (
-    select 1 from segments
-    where segments.id = entities.segment_id
-    and segments.team_id is not null
-  ));
+-- create policy "Users can view entities from team segments"
+--   on entities for select
+--   using (exists (
+--     select 1 from segments s
+--     where s.id = entities.segment_id
+--     and tm.user_id = auth.uid()
+--   ));
 
 create policy "Service role can insert entities"
   on entities for insert
-  with check (true);
+  with check ((auth.jwt() ->> 'role') = 'service_role');
 
 create materialized view search_materialized as
 select
@@ -198,10 +218,12 @@ select
   v.s3_thumb_path,
   v.status as video_status,
   v.created_at as video_created_at,
-  to_tsvector('english', s.normalized_text) as search_vector
+  to_tsvector('simple', s.normalized_text) as search_vector
 from segments s
 join videos v on v.id = s.video_id
 where v.status = 'ready';
+
+create unique index idx_search_mat_segment_id on search_materialized(segment_id);
 
 create index idx_search_mat_video_id on search_materialized(video_id);
 create index idx_search_mat_owner_id on search_materialized(owner_id);
