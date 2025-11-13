@@ -1,0 +1,59 @@
+name: api-gateway • CI/CD
+
+on:
+  push:
+    branches: [production, development]
+    paths:
+      - "services/api-gateway/**"
+      - "cortana_common/**"
+      - ".github/workflows/api-gateway.yml"
+      - ".github/workflows/reusable-python-*.yml"
+      - "ruff.toml"
+      - "mypy.ini"
+  pull_request:
+    paths:
+      - "services/api-gateway/**"
+      - "cortana_common/**"
+  workflow_dispatch: {}
+
+concurrency:
+  group: api-gateway-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Test
+    uses: ./.github/workflows/reusable-python-tests.yml
+    with:
+      service_name: api-gateway
+      service_path: services/api-gateway
+      python_version: "3.12"
+      install_ffmpeg: false
+
+  lint:
+    name: Lint (mypy)
+    uses: ./.github/workflows/reusable-python-mypy.yml
+    with:
+      service_name: api-gateway
+      service_path: services/api-gateway
+      python_version: "3.12"
+
+  ruff:
+    name: Ruff
+    uses: ./.github/workflows/reusable-python-ruff.yml
+    with:
+      service_name: api-gateway
+      service_path: services/api-gateway
+      python_version: "3.12"
+
+  build:
+    name: Build & Push
+    needs: [test, lint, ruff]
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+    uses: ./.github/workflows/reusable-python-service.yml
+    with:
+      service_name: api-gateway
+      service_path: services/api-gateway

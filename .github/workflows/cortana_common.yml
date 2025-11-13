@@ -1,0 +1,45 @@
+name: cortana_common • CI
+
+on:
+  push:
+    branches: [production, development]
+    paths:
+      - "cortana_common/**"
+      - ".github/workflows/cortana_common.yml"
+      - ".github/workflows/reusable-python-*.yml"
+      - "ruff.toml"
+      - "mypy.ini"
+  pull_request:
+    paths:
+      - "cortana_common/**"
+  workflow_dispatch: {}
+
+concurrency:
+  group: cortana_common-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Test
+    uses: ./.github/workflows/reusable-python-tests.yml
+    with:
+      service_name: cortana_common
+      service_path: cortana_common
+      python_version: "3.12"
+      install_ffmpeg: false
+
+  lint:
+    name: Lint (mypy)
+    uses: ./.github/workflows/reusable-python-mypy.yml
+    with:
+      service_name: cortana_common
+      service_path: cortana_common
+      python_version: "3.12"
+
+  ruff:
+    name: Ruff
+    uses: ./.github/workflows/reusable-python-ruff.yml
+    with:
+      service_name: cortana_common
+      service_path: cortana_common
+      python_version: "3.12"

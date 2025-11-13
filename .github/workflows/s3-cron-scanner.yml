@@ -1,0 +1,59 @@
+name: s3-cron-scanner • CI/CD
+
+on:
+  push:
+    branches: [production, development]
+    paths:
+      - "services/s3-cron-scanner/**"
+      - "cortana_common/**"
+      - ".github/workflows/s3-cron-scanner.yml"
+      - ".github/workflows/reusable-python-*.yml"
+      - "ruff.toml"
+      - "mypy.ini"
+  pull_request:
+    paths:
+      - "services/s3-cron-scanner/**"
+      - "cortana_common/**"
+  workflow_dispatch: {}
+
+concurrency:
+  group: s3-cron-scanner-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Test
+    uses: ./.github/workflows/reusable-python-tests.yml
+    with:
+      service_name: s3-cron-scanner
+      service_path: services/s3-cron-scanner
+      python_version: "3.12"
+      install_ffmpeg: false
+
+  lint:
+    name: Lint (mypy)
+    uses: ./.github/workflows/reusable-python-mypy.yml
+    with:
+      service_name: s3-cron-scanner
+      service_path: services/s3-cron-scanner
+      python_version: "3.12"
+
+  ruff:
+    name: Ruff
+    uses: ./.github/workflows/reusable-python-ruff.yml
+    with:
+      service_name: s3-cron-scanner
+      service_path: services/s3-cron-scanner
+      python_version: "3.12"
+
+  build:
+    name: Build & Push
+    needs: [test, lint, ruff]
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+    uses: ./.github/workflows/reusable-python-service.yml
+    with:
+      service_name: s3-cron-scanner
+      service_path: services/s3-cron-scanner
