@@ -3,7 +3,7 @@
 import logging
 import random
 import time
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any, Optional
 from uuid import UUID
 
@@ -139,7 +139,7 @@ def poll_next_job(job_type: JobType) -> Optional[Job]:
         RETURNING *
     """
     
-    now = datetime.utcnow()
+    now = datetime.now(UTC)
     
     with get_db_connection() as conn:
         with conn.cursor() as cur:
@@ -179,7 +179,7 @@ def ack_job(job_id: UUID) -> None:
         WHERE id = %s
     """
     
-    now = datetime.utcnow()
+    now = datetime.now(UTC)
     
     with get_db_connection() as conn:
         with conn.cursor() as cur:
@@ -228,7 +228,7 @@ def nack_job(job_id: UUID, error: str) -> None:
             
             payload["errors"].append({
                 "message": error,
-                "timestamp": datetime.utcnow().isoformat(),
+                "timestamp": datetime.now(UTC).isoformat(),
                 "retry_count": retry_count,
             })
             
@@ -256,7 +256,7 @@ def nack_job(job_id: UUID, error: str) -> None:
                 WHERE id = %s
             """
             
-            now = datetime.utcnow()
+            now = datetime.now(UTC)
             finished_at = now if new_status == JobStatus.FAILED.value else None
             
             cur.execute(

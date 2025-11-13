@@ -1,6 +1,6 @@
 """Tests for pydantic models."""
 
-from datetime import datetime
+from datetime import UTC, datetime
 from uuid import uuid4
 
 import pytest
@@ -19,7 +19,7 @@ def test_job_model():
     """Test Job model creation and validation."""
     job_id = uuid4()
     video_id = uuid4()
-    now = datetime.utcnow()
+    now = datetime.now(UTC)
     
     job = Job(
         id=job_id,
@@ -61,7 +61,7 @@ def test_video_model():
     """Test Video model creation and validation."""
     video_id = uuid4()
     owner_id = uuid4()
-    now = datetime.utcnow()
+    now = datetime.now(UTC)
     
     video = Video(
         id=video_id,
@@ -96,7 +96,7 @@ def test_segment_model():
     segment_id = uuid4()
     video_id = uuid4()
     owner_id = uuid4()
-    now = datetime.utcnow()
+    now = datetime.now(UTC)
     
     segment = Segment(
         id=segment_id,
@@ -126,7 +126,7 @@ def test_segment_confidence_validation():
     segment_id = uuid4()
     video_id = uuid4()
     owner_id = uuid4()
-    now = datetime.utcnow()
+    now = datetime.now(UTC)
     
     segment = Segment(
         id=segment_id,
