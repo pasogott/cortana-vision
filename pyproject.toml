@@ -1,0 +1,14 @@
+[project]
+name = "cortana-vision"
+version = "0.1.0"
+description = "Video OCR and search system for screen recordings"
+requires-python = ">=3.12"
+
+[tool.uv.workspace]
+members = [
+    "cortana_common",
+    "services/*"
+]
+
+[tool.uv]
+dev-dependencies = []
