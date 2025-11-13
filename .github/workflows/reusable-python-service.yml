@@ -1,4 +1,4 @@
-name: Reusable Python/uv Service Workflow
+name: Reusable Python/uv Build Workflow
 
 on:
   workflow_call:
@@ -11,26 +11,6 @@ on:
         description: "Path to the service directory (e.g., services/api-gateway)"
         required: true
         type: string
-      python_version:
-        description: "Python version to use"
-        required: false
-        type: string
-        default: "3.12"
-      install_ffmpeg:
-        description: "Whether to install FFmpeg for testing"
-        required: false
-        type: boolean
-        default: false
-      run_tests:
-        description: "Whether to run tests"
-        required: false
-        type: boolean
-        default: true
-      docker_build:
-        description: "Whether to build and push Docker image"
-        required: false
-        type: boolean
-        default: true
       docker_registry:
         description: "Docker registry to push to"
         required: false
@@ -43,66 +23,18 @@ permissions:
   id-token: write
 
 jobs:
-  test-and-build:
+  build:
     runs-on: ubuntu-latest
     
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # Python and uv setup
-      - name: Set up Python ${{ inputs.python_version }}
-        uses: actions/setup-python@v5
-        with:
-          python-version: ${{ inputs.python_version }}
-
-      - name: Install uv
-        run: pipx install uv
-
-      # Cache uv dependencies for faster CI runs
-      - name: Cache uv dependencies
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cache/uv
-            ${{ inputs.service_path }}/.venv
-          key: ${{ runner.os }}-uv-${{ inputs.python_version }}-${{ hashFiles(format('{0}/uv.lock', inputs.service_path)) }}
-          restore-keys: |
-            ${{ runner.os }}-uv-${{ inputs.python_version }}-
-            ${{ runner.os }}-uv-
-
-      # Optional: Install FFmpeg for services that need it
-      - name: Install FFmpeg
-        if: inputs.install_ffmpeg
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y ffmpeg
-
-      # Run tests with coverage
-      - name: Run tests
-        if: inputs.run_tests
-        working-directory: ${{ inputs.service_path }}
-        run: |
-          uv sync
-          uv run pytest -v --cov --cov-report=term --cov-report=xml
-
-      # Upload coverage to GitHub (optional, for display in PR)
-      - name: Upload coverage reports
-        if: inputs.run_tests
-        uses: codecov/codecov-action@v4
-        continue-on-error: true
-        with:
-          files: ${{ inputs.service_path }}/coverage.xml
-          flags: ${{ inputs.service_name }}
-          name: ${{ inputs.service_name }}
-
       # Docker build and push
       - name: Set up Docker Buildx
-        if: inputs.docker_build
         uses: docker/setup-buildx-action@v3
 
       - name: Log in to container registry
-        if: inputs.docker_build
         uses: docker/login-action@v3
         with:
           registry: ${{ inputs.docker_registry }}
@@ -110,7 +42,6 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Extract Docker metadata
-        if: inputs.docker_build
         id: meta
         uses: docker/metadata-action@v5
         with:
@@ -124,7 +55,6 @@ jobs:
             type=raw,value=latest,enable={{is_default_branch}}
 
       - name: Build and push Docker image
-        if: inputs.docker_build
         uses: docker/build-push-action@v6
         with:
           context: ${{ inputs.service_path }}
@@ -137,7 +67,7 @@ jobs:
           provenance: false
 
       - name: Summarize build
-        if: inputs.docker_build && github.event_name != 'pull_request'
+        if: github.event_name != 'pull_request'
         run: |
           echo "## 🐳 Docker Image Published" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY

@@ -1,0 +1,80 @@
+name: Reusable Python Tests Workflow
+
+on:
+  workflow_call:
+    inputs:
+      service_name:
+        description: "Name of the service (e.g., api-gateway, transcode-worker)"
+        required: true
+        type: string
+      service_path:
+        description: "Path to the service directory (e.g., services/api-gateway)"
+        required: true
+        type: string
+      python_version:
+        description: "Python version to use"
+        required: false
+        type: string
+        default: "3.12"
+      install_ffmpeg:
+        description: "Whether to install FFmpeg for testing"
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python ${{ inputs.python_version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ inputs.python_version }}
+
+      - name: Install uv
+        run: pipx install uv
+
+      - name: Cache uv dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/uv
+            ${{ inputs.service_path }}/.venv
+          key: ${{ runner.os }}-uv-${{ inputs.python_version }}-${{ hashFiles(format('{0}/uv.lock', inputs.service_path)) }}
+          restore-keys: |
+            ${{ runner.os }}-uv-${{ inputs.python_version }}-
+            ${{ runner.os }}-uv-
+
+      - name: Install FFmpeg
+        if: inputs.install_ffmpeg
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
+
+      - name: Run tests
+        working-directory: ${{ inputs.service_path }}
+        run: |
+          uv sync
+          uv run pytest -v --cov --cov-report=term --cov-report=xml
+
+      - name: Upload coverage reports
+        uses: codecov/codecov-action@v4
+        continue-on-error: true
+        with:
+          files: ${{ inputs.service_path }}/coverage.xml
+          flags: ${{ inputs.service_name }}
+          name: ${{ inputs.service_name }}
+
+      - name: Test summary
+        run: |
+          echo "## ✅ Tests Passed" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Service:** ${{ inputs.service_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Python:** ${{ inputs.python_version }}" >> $GITHUB_STEP_SUMMARY
