@@ -69,8 +69,8 @@ S3_SECRET_ACCESS_KEY=…
 | ------------------------ | ------------------------------------------------------------------------------------------------------ |
 | **S3 Cron Scanner**      | Detects newly uploaded original videos and inserts a `videos` + `jobs` record.                         |
 | **Transcode Worker**     | Reads from `videos/original/…`, writes HLS proxies to `videos/proxy/…`, and generates thumbnails.      |
-| **Sampler Worker**       | Reads proxy or original video to produce keyframes (`frames/…`).                                       |
-| **OCR Worker**           | Reads keyframes, writes OCR debug artifacts (optional).                                                |
+| **Sampler Worker**       | **Must read from original high-resolution video** (`videos/original/…`) to produce keyframes (`frames/…`) for OCR processing. This ensures maximum text detection accuracy. |
+| **OCR Worker**           | Reads keyframes extracted from original videos, writes OCR debug artifacts (optional).                                                |
 | **Segment-Index Worker** | Pure DB work – no direct S3 writes.                                                                    |
 | **Clip Service**         | Creates short on-demand clips and uploads them to `videos/clips/…`.                                    |
 | **API Gateway**          | Issues short-lived **presigned URLs** so the frontend can stream or download without exposing S3 keys. |

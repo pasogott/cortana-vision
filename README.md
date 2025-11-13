@@ -34,8 +34,9 @@ Each new video is automatically ingested and processed in well-defined stages:
 	3.	Sampling & Change Detection
 	•	sampler-worker down-samples from 120 fps to ~10–15 fps.
 	•	Uses perceptual hashing to skip duplicate or unchanged frames.
+	•	**Must use original high-resolution video files** (not proxy versions) to ensure maximum quality for OCR processing.
 	4.	Text Detection & OCR
-	•	ocr-worker reads only the significant frames/clips.
+	•	ocr-worker reads only the significant frames/clips extracted from original videos.
 	•	Detects multi-language text and emojis, storing each snippet with t_start and t_end.
 	5.	Segment & Index
 	•	segment-index-worker merges consecutive identical texts, extracts entities (@/#/URLs), and updates Supabase’s full-text/trigram indexes.
