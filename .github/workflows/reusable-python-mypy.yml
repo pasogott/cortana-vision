@@ -1,0 +1,62 @@
+name: Reusable Python Mypy Workflow
+
+on:
+  workflow_call:
+    inputs:
+      service_name:
+        description: "Name of the service (e.g., api-gateway, transcode-worker)"
+        required: true
+        type: string
+      service_path:
+        description: "Path to the service directory (e.g., services/api-gateway)"
+        required: true
+        type: string
+      python_version:
+        description: "Python version to use"
+        required: false
+        type: string
+        default: "3.12"
+
+permissions:
+  contents: read
+
+jobs:
+  mypy:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python ${{ inputs.python_version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ inputs.python_version }}
+
+      - name: Install uv
+        run: pipx install uv
+
+      - name: Cache uv dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/uv
+            ${{ inputs.service_path }}/.venv
+          key: ${{ runner.os }}-uv-${{ inputs.python_version }}-${{ hashFiles(format('{0}/uv.lock', inputs.service_path)) }}
+          restore-keys: |
+            ${{ runner.os }}-uv-${{ inputs.python_version }}-
+            ${{ runner.os }}-uv-
+
+      - name: Run mypy type checking
+        working-directory: ${{ inputs.service_path }}
+        run: |
+          uv sync
+          uvx mypy src --config-file=../../mypy.ini
+
+      - name: Mypy summary
+        if: success()
+        run: |
+          echo "## ✅ Type Checking Passed" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Service:** ${{ inputs.service_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Tool:** mypy" >> $GITHUB_STEP_SUMMARY
