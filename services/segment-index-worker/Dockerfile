@@ -22,7 +22,7 @@ RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --no-install-project --no-dev
 
 # Copy the service code
-COPY services/api-gateway ./services/api-gateway
+COPY services/segment-index-worker ./services/segment-index-worker
 
 # Install the service
 RUN --mount=type=cache,target=/root/.cache/uv \
@@ -34,7 +34,5 @@ ENV PATH="/workspace/.venv/bin:$PATH"
 # Reset the entrypoint, don't invoke `uv`
 ENTRYPOINT []
 
-# Run the FastAPI application by default
-# Uses `fastapi run` for production-optimized server with uvicorn
-# Uses `--host 0.0.0.0` to allow access from outside the container
-CMD ["fastapi", "run", "--host", "0.0.0.0", "--port", "8000", "services/api-gateway/src"]
+# Run the segment index worker
+CMD ["python", "-m", "services.segment-index-worker.src"]

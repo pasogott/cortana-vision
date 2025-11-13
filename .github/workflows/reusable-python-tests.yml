@@ -61,8 +61,8 @@ jobs:
       - name: Run tests
         working-directory: ${{ inputs.service_path }}
         run: |
-          uv sync
-          uv run pytest -v --cov --cov-report=term --cov-report=xml
+          uv sync --extra dev
+          uv run -m pytest -v --cov --cov-report=term --cov-report=xml
 
       - name: Upload coverage reports
         uses: codecov/codecov-action@v4

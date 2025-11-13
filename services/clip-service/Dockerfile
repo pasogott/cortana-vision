@@ -1,6 +1,9 @@
 # Use a Python image with uv pre-installed
 FROM ghcr.io/astral-sh/uv:python3.12-bookworm-slim
 
+# Install FFmpeg for video processing
+RUN apt-get update && apt-get install -y ffmpeg && rm -rf /var/lib/apt/lists/*
+
 # Install the project into `/workspace`
 WORKDIR /workspace
 
@@ -22,7 +25,7 @@ RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --no-install-project --no-dev
 
 # Copy the service code
-COPY services/api-gateway ./services/api-gateway
+COPY services/clip-service ./services/clip-service
 
 # Install the service
 RUN --mount=type=cache,target=/root/.cache/uv \
@@ -34,7 +37,5 @@ ENV PATH="/workspace/.venv/bin:$PATH"
 # Reset the entrypoint, don't invoke `uv`
 ENTRYPOINT []
 
-# Run the FastAPI application by default
-# Uses `fastapi run` for production-optimized server with uvicorn
-# Uses `--host 0.0.0.0` to allow access from outside the container
-CMD ["fastapi", "run", "--host", "0.0.0.0", "--port", "8000", "services/api-gateway/src"]
+# Run the clip service worker
+CMD ["python", "-m", "services.clip-service.src"]
