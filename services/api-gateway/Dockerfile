@@ -32,6 +32,6 @@ ENV PATH="/app/.venv/bin:$PATH"
 ENTRYPOINT []
 
 # Run the FastAPI application by default
-# Uses `fastapi dev` to enable hot-reloading when the `watch` sync occurs
+# Uses `fastapi run` for production-optimized server with uvicorn
 # Uses `--host 0.0.0.0` to allow access from outside the container
-CMD ["fastapi", "dev", "--host", "0.0.0.0", "src/api-gateway"]
+CMD ["fastapi", "run", "--host", "0.0.0.0", "--port", "8000", "src/api-gateway"]
