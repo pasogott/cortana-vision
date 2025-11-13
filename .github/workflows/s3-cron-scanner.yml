@@ -1,23 +1,23 @@
-name: api-gateway • CI/CD
+name: s3-cron-scanner • CI/CD
 
 on:
   push:
     branches: [production, development]
     paths:
-      - "services/api-gateway/**"
+      - "services/s3-cron-scanner/**"
       - "cortana_common/**"
-      - ".github/workflows/api-gateway.yml"
+      - ".github/workflows/s3-cron-scanner.yml"
       - ".github/workflows/reusable-python-*.yml"
       - "ruff.toml"
       - "mypy.ini"
   pull_request:
     paths:
-      - "services/api-gateway/**"
+      - "services/s3-cron-scanner/**"
       - "cortana_common/**"
   workflow_dispatch: {}
 
 concurrency:
-  group: api-gateway-${{ github.ref }}
+  group: s3-cron-scanner-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -25,8 +25,8 @@ jobs:
     name: Test
     uses: ./.github/workflows/reusable-python-tests.yml
     with:
-      service_name: api-gateway
-      service_path: services/api-gateway
+      service_name: s3-cron-scanner
+      service_path: services/s3-cron-scanner
       python_version: "3.12"
       install_ffmpeg: false
 
@@ -34,16 +34,16 @@ jobs:
     name: Lint (mypy)
     uses: ./.github/workflows/reusable-python-mypy.yml
     with:
-      service_name: api-gateway
-      service_path: services/api-gateway
+      service_name: s3-cron-scanner
+      service_path: services/s3-cron-scanner
       python_version: "3.12"
 
   ruff:
     name: Ruff
     uses: ./.github/workflows/reusable-python-ruff.yml
     with:
-      service_name: api-gateway
-      service_path: services/api-gateway
+      service_name: s3-cron-scanner
+      service_path: services/s3-cron-scanner
       python_version: "3.12"
 
   build:
@@ -51,5 +51,5 @@ jobs:
     needs: [test, lint, ruff]
     uses: ./.github/workflows/reusable-python-service.yml
     with:
-      service_name: api-gateway
-      service_path: services/api-gateway
+      service_name: s3-cron-scanner
+      service_path: services/s3-cron-scanner
